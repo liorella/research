@@ -151,7 +151,11 @@ class CircuitQuaTransformer:
 
     def _to_config(self):
         schedule = self._circuit_to_schedule(self._circuit)
-        schedule = schedule.filter(channels=[DriveChannel(0), DriveChannel(1), ControlChannel(0), ControlChannel(1)])
+        chan_filter = []
+        for i in range(self._circuit.num_qubits):
+            chan_filter.append(DriveChannel(i))
+            chan_filter.append(ControlChannel(i))
+        schedule = schedule.filter(channels=chan_filter)
         pulse_dict = {inst[1].name:
                           (inst[1].duration,
                            inst[1].pulse.samples)

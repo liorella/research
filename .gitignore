@@ -4,3 +4,9 @@
 gatelevel/gatelevel_qiskit/.ipynb_checkpoints/
 
 phys/.ipynb_checkpoints/
+
+*.pyc
+
+.idea/
+
+gatelevel/gatelevel_qiskit/examples/.ipynb_checkpoints/
