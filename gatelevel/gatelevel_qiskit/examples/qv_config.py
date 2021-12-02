@@ -1,5 +1,7 @@
 num_qubits = 4
 
+assert num_qubits < 5, "hardcoded to have only 2 controllers"
+
 config_base = {
     'version': 1,
     'controllers': {
@@ -12,7 +14,17 @@ config_base = {
                 1: {'offset': 0.0},
                 2: {'offset': 0.0}
             }
-        }
+        },
+        'con2': {
+            'type': 'opx1',
+            'analog_outputs': {
+                i + 1: {'offset': 0.0} for i in range(10)
+            },
+            'analog_inputs': {
+                1: {'offset': 0.0},
+                2: {'offset': 0.0}
+            }
+        },
     },
 
     'elements': {**{
@@ -28,8 +40,8 @@ config_base = {
         **{
         f'u{i}': {
             'mixInputs': {
-                'I': ('con1', 2*i + 5),  # these assignments don't make sense but not important for the demo
-                'Q': ('con1', 2*i + 6),
+                'I': ('con2', 2*i + 1),  # these assignments don't make sense but not important for the demo
+                'Q': ('con2', 2*i + 2),
                 'lo_frequency': 0.0,
                 'mixer': 'mxr_qb1'  # these assignments don't make sense but not important for the demo
             },

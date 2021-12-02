@@ -33,8 +33,8 @@ class CircuitQuaTransformer:
     def _create_channel_port_map(config_base):
         ch_port_map = {}
         for element in config_base["elements"]:
-            ch_port_map[element + "_i"] = str(config_base["elements"][element]["mixInputs"]["I"][1])
-            ch_port_map[element + "_q"] = str(config_base["elements"][element]["mixInputs"]["Q"][1])
+            ch_port_map[element + "_i"] = config_base["elements"][element]["mixInputs"]["I"]
+            ch_port_map[element + "_q"] = config_base["elements"][element]["mixInputs"]["Q"]
         return ch_port_map
 
     @staticmethod
@@ -69,7 +69,7 @@ class CircuitQuaTransformer:
 
     def to_waveforms(self, init_time=0.0):
         schedule = self._schedule
-        inst_dict = {item: [] for item in self._channel_port_map.values()}
+        inst_dict = {}
         accumulated_phases = {chan: 0.0 for chan in schedule.channels}
 
         inst_seq = schedule.instructions
@@ -81,22 +81,31 @@ class CircuitQuaTransformer:
                 phase_wrapped = (accumulated_phases[inst.channel] - np.pi) % (2 * np.pi) - np.pi
                 if phase_wrapped == -np.pi:
                     phase_wrapped = np.pi  # hack to make compatible with simulator
-                inst_pre_samples = {
+                inst_pre = {
                     'duration': float(inst.pulse.duration),
                     'frequency': self._channel_freq_map[inst.channel],
                     'phase': phase_wrapped,
                     'timestamp': float(start_time) + init_time,
                 }
-                inst_i = copy(inst_pre_samples)
-                inst_i['samples'] = {'values': inst.pulse.samples.real.tolist(),
-                                     'type': 'literal'}
+                inst_i = copy(inst_pre)
                 inst_i['name'] = inst.name + "_i"
-                inst_q = copy(inst_pre_samples)
-                inst_q['samples'] = {'values': inst.pulse.samples.imag.tolist(),
-                                     'type': 'literal'}
+                inst_q = copy(inst_pre)
                 inst_q['name'] = inst.name + "_q"
-                inst_dict[self._channel_to_port(inst.channel, "i")].append(inst_i)
-                inst_dict[self._channel_to_port(inst.channel, "q")].append(inst_q)
+                port_i = self._channel_to_port(inst.channel, "i")
+                port_q = self._channel_to_port(inst.channel, "q")
+
+                if not port_i[0] in inst_dict:
+                    inst_dict[port_i[0]] = {}
+                if not str(port_i[1]) in inst_dict[port_i[0]]:
+                    inst_dict[port_i[0]][str(port_i[1])] = []
+                inst_dict[port_i[0]][str(port_i[1])].append(inst_i)
+
+                if not port_q[0] in inst_dict:
+                    inst_dict[port_q[0]] = {}
+                if not str(port_q[1]) in inst_dict[port_q[0]]:
+                    inst_dict[port_q[0]][str(port_q[1])] = []
+                inst_dict[port_q[0]][str(port_q[1])].append(inst_q)
+
             elif isinstance(inst, Acquire):
                 pass
             else:

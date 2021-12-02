@@ -1,5 +1,9 @@
 from deepdiff import DeepDiff
 import numpy as np
+from qm import QmJob
+
+from gatelevel_qiskit.circuit_to_qua import CircuitQuaTransformer
+from gatelevel_qiskit.lib import get_min_time
 
 
 def _traverse_dicts(waveforms, iter_function, node_function):
@@ -20,12 +24,20 @@ def _traverse_dicts(waveforms, iter_function, node_function):
 
 
 class WaveformComparator:
-    def __init__(self, simulator_waveforms, circuit_waveforms):
-        self._simulator_waveforms = simulator_waveforms
-        self._circuit_waveforms = circuit_waveforms
+    def __init__(self,
+                 simulator_job: QmJob,
+                 transfomer: CircuitQuaTransformer):
+
+        self._simulator_waveforms = {}
+        wfs_by_con = simulator_job.simulated_analog_waveforms()['controllers']
+        for con in wfs_by_con:
+            self._simulator_waveforms[con] = wfs_by_con[con]['ports']
+        self._circuit_waveforms = transfomer.to_waveforms(get_min_time(self._simulator_waveforms))
         self._transform_literal_constant()
         self._phase_mod_2pi()
-        self.diff = DeepDiff(simulator_waveforms, circuit_waveforms, significant_digits=5)
+        self.diff = DeepDiff(self._simulator_waveforms,
+                             self._circuit_waveforms,
+                             significant_digits=5)
         self._transform_names()
 
     def __repr__(self):

@@ -41,6 +41,7 @@ def plot_waveforms(play_inst):
 
 def get_min_time(wfs_data):
     mins = []
-    for key in wfs_data.keys():
-        mins.append(min(element['timestamp'] for element in wfs_data[key]))
+    for con in wfs_data:
+        for port in wfs_data[con]:
+            mins.append(min(element['timestamp'] for element in wfs_data[con][port]))
     return min(mins)
