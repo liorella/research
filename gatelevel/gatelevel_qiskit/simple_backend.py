@@ -8,8 +8,8 @@ from qiskit.test.mock import FakeOpenPulse2Q, FakeAlmaden
 from gatelevel_qiskit.pulse_backend import PulseBackend
 
 # parameters
-num_qubits = 4
-qubit_coupling_map = [[0, 1], [1, 2], [2, 3]]
+from gatelevel_qiskit.examples.qv_config import num_qubits
+qubit_coupling_map = [[0, 1], [1, 2], [2, 3], [3, 4]]
 
 # create backend
 backend = FakeOpenPulse2Q()
@@ -20,17 +20,17 @@ cals = defaults.instruction_schedule_map
 simple_backend = PulseBackend(backend, cals)
 
 # single qubit gates
-X_q = [Schedule(Play(Gaussian(duration=20, amp=0.2, sigma=2).get_waveform(),
+X_q = [Schedule(Play(Gaussian(duration=36, amp=0.2, sigma=10).get_waveform(),
                      name='wf_X',
                      channel=DriveChannel(nq)))
        for nq in range(num_qubits)]
 
-Y_q = [Schedule(Play(Gaussian(duration=20, amp=0.2 * 1j, sigma=2).get_waveform(),
+Y_q = [Schedule(Play(Gaussian(duration=36, amp=0.2 * 1j, sigma=10).get_waveform(),
                      name='wf_Y',
                      channel=DriveChannel(nq)))
        for nq in range(num_qubits)]  # todo: plus or minus?
 
-sx_q = [Schedule(Play(Gaussian(duration=20, amp=0.1, sigma=2).get_waveform(),
+sx_q = [Schedule(Play(Gaussian(duration=36, amp=0.1, sigma=10).get_waveform(),
                       name='wf_sx',
                       channel=DriveChannel(nq)))
         for nq in range(num_qubits)]
@@ -38,7 +38,7 @@ sx_q = [Schedule(Play(Gaussian(duration=20, amp=0.1, sigma=2).get_waveform(),
 H_q = []
 for nq in range(num_qubits):
     H_q.append(Schedule(ShiftPhase(np.pi / 2, channel=DriveChannel(nq))))
-    H_q[nq] += Play(Gaussian(duration=20, amp=0.1, sigma=2).get_waveform(), name='wf_X90', channel=DriveChannel(nq))
+    H_q[nq] += Play(Gaussian(duration=36, amp=0.1, sigma=10).get_waveform(), name='wf_X90', channel=DriveChannel(nq))
     H_q[nq] += ShiftPhase(np.pi / 2, channel=DriveChannel(nq))
 
 S_q = [Schedule(ShiftPhase(np.pi / 2, channel=DriveChannel(nq))) for nq in range(num_qubits)]
@@ -76,31 +76,31 @@ for cpl in qubit_coupling_map:
     cx += ShiftPhase(np.pi / 2, ControlChannel(cpl[1]))
     # 2
     inst = next(al_insts)
-    samples_ds = inst[1].pulse.samples[::8] / 2  # downsample and scale
+    samples_ds = inst[1].pulse.samples[::4] / 2  # downsample and scale
     cx += Play(Waveform(samples_ds, name=inst[1].pulse.name), channel=DriveChannel(cpl[0]))
     # 3
     inst = next(al_insts)
-    samples_ds = inst[1].pulse.samples[::8] / 2  # downsample and scale
+    samples_ds = inst[1].pulse.samples[::4] / 2  # downsample and scale
     cx += Play(Waveform(samples_ds, name=inst[1].pulse.name), channel=DriveChannel(cpl[1]))
     # 4
     inst = next(al_insts)
-    samples_ds = inst[1].pulse.samples[::8] / 2  # downsample and scale
+    samples_ds = inst[1].pulse.samples[::4] / 2  # downsample and scale
     cx += Play(Waveform(samples_ds, name=inst[1].pulse.name), channel=DriveChannel(cpl[1]))
     # 5
     inst = next(al_insts)
-    samples_ds = inst[1].pulse.samples[::8] / 2  # downsample and scale
-    cx += Play(Waveform(samples_ds, name=inst[1].pulse.name), channel=ControlChannel(cpl[0])).shift(160 // 8)
+    samples_ds = inst[1].pulse.samples[::4] / 2  # downsample and scale
+    cx += Play(Waveform(samples_ds, name=inst[1].pulse.name), channel=ControlChannel(cpl[0])).shift(160 // 4)
     # 6
     inst = next(al_insts)
-    samples_ds = inst[1].pulse.samples[::8] / 2  # downsample
-    cx += Play(Waveform(samples_ds, name=inst[1].pulse.name), channel=DriveChannel(cpl[0])).shift(512 // 8)
+    samples_ds = inst[1].pulse.samples[::4] / 2  # downsample
+    cx += Play(Waveform(samples_ds, name=inst[1].pulse.name), channel=DriveChannel(cpl[0])).shift(512 // 4)
     # 7
     inst = next(al_insts)
-    samples_ds = inst[1].pulse.samples[::8] / 2  # downsample
-    cx += Play(Waveform(samples_ds, name=inst[1].pulse.name), channel=DriveChannel(cpl[1])).shift(160 // 8)
+    samples_ds = inst[1].pulse.samples[::4] / 2  # downsample
+    cx += Play(Waveform(samples_ds, name=inst[1].pulse.name), channel=DriveChannel(cpl[1])).shift(160 // 4)
     # 8
     inst = next(al_insts)
-    samples_ds = inst[1].pulse.samples[::8] / 2  # downsample
-    cx += Play(Waveform(samples_ds, name=inst[1].pulse.name), channel=ControlChannel(cpl[0])).shift(160 // 8)
+    samples_ds = inst[1].pulse.samples[::4] / 2  # downsample
+    cx += Play(Waveform(samples_ds, name=inst[1].pulse.name), channel=ControlChannel(cpl[0])).shift(160 // 4)
 
     simple_backend.add('cx', cpl, cx)

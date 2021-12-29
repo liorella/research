@@ -127,14 +127,18 @@ class CircuitQuaTransformer:
         qua_str += write_indent_line(
             f"align(*{[chan.name for chan in schedule.channels if type(chan) in _play_channels]})",
             1)
+        qua_str = self._create_qua_body(qua_str)
+        return qua_str
+
+    def _create_qua_body(self, qua_str):
+        schedule = self._schedule
         inst_seq = schedule.instructions
-
         current_time_map = {chan: 0 for chan in schedule.channels}
-
         for inst_tuple in inst_seq:
             start_time, inst = inst_tuple
             if isinstance(inst, ShiftPhase):
                 qua_str += write_indent_line(f"frame_rotation({inst.phase}, '{inst.channel.name}')", 1)
+                # qua_str += write_indent_line(f"frame_rotation(args, '{inst.channel.name}')", 1)
             elif isinstance(inst, Play):
                 if start_time > current_time_map[inst.channel]:
                     wait_time = (start_time - current_time_map[inst.channel])
@@ -144,8 +148,9 @@ class CircuitQuaTransformer:
                     wait_time = 0
                 current_time_map[inst.channel] += inst.duration + wait_time
                 if isinstance(inst.channel, MeasureChannel):
-                    qua_str += write_indent_line(f"measure('test_pulse_1', '{inst.channel.name}', None, "  # todo: this is hardcoded, fix
-                                                 f"('integw', I[{inst.channel.index}]))", 1)
+                    qua_str += write_indent_line(
+                        f"measure('test_pulse_1', '{inst.channel.name}', None, "  # todo: this is hardcoded, fix
+                        f"('integw', I[{inst.channel.index}]))", 1)
                     qua_str += write_indent_line(f"save(I[{inst.channel.index}], 'I{inst.channel.index}')", 1)
                 else:
                     qua_str += write_indent_line(f"play('{inst.name}', '{inst.channel.name}')", 1)

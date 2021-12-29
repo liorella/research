@@ -1,29 +1,36 @@
+import time
+
+import numpy as np
 from qm import SimulationConfig
-from qm.qua import *
 from qm.QuantumMachinesManager import QuantumMachinesManager
-from gatelevel_qiskit.examples.qv_config import config_base, num_qubits
+from qm.qua import *
+
+from gatelevel_qiskit.clops_maker import QVMaker
+from gatelevel_qiskit.examples.qv_config import num_qubits
 
 shots = 100
 K = 10
+M = 100
 I_thresh = [0 for _ in range(num_qubits)]
+num_templates_per_prog = 5
 
 
 def assign_random_parameters(params):
+    i = declare(int)
     with for_(i, 0, i < num_qubits * 3, i + 1):
         assign(params[i], r.rand_fixed())
+        save(params[i], 'xxx')
 
 
 def initialize_qubits():
     I = [declare(fixed) for _ in range(num_qubits)]
     for i in range(num_qubits):
         measure('readout_pulse', f'm{i}', None, dual_demod.full('iw1', 'out1', 'iw2', 'out2', I[i]))
-        with while_(I[i] > I_thresh[i]):
-            # play('pi_pulse', f'q{i}')  # todo: uncomment when done
-            measure('readout_pulse', f'm{i}', None, dual_demod.full('iw1', 'out1', 'iw2', 'out2', I[i]))
-
-
-def run_qv_circuit(params):
-    pass
+        align(f'm{i}', f'd{i}')
+        with if_(I[i] > -2.0):
+            play('wf_sx', f'd{i}')
+            # align(f'm{i}', f'd{i}')
+            # measure('readout_pulse', f'm{i}', None, dual_demod.full('iw1', 'out1', 'iw2', 'out2', I[i]))
 
 
 def measure_state(state):
@@ -31,12 +38,12 @@ def measure_state(state):
     for i in range(num_qubits):
         measure('readout_pulse', f'm{i}', None, dual_demod.full('iw1', 'out1', 'iw2', 'out2', I[i]))
         assign(state[i], I[i] > I_thresh[i])
+        save(state[i], 'qs')
 
     # randomize measurement result (todo: remove when done)
-    i = declare(int)
-    with for_(i, 0, i < num_qubits, i + 1):
-        assign(qubits_state[i], Cast.to_bool(r.rand_int(2)))
-        save(qubits_state[i], 'qs')
+    # i = declare(int)
+    # with for_(i, 0, i < num_qubits, i + 1):
+    #     assign(qubits_state[i], Cast.to_bool(r.rand_int(2)))
 
 
 def bool_to_int(int_result, bool_vector, binary_len):
@@ -55,33 +62,74 @@ def bool_to_int(int_result, bool_vector, binary_len):
         assign(int_result, int_result + (Cast.unsafe_cast_int(bool_vector[i_bi]) << i_bi))
 
 
-with program() as prog:
-    parameters = declare(fixed, size=num_qubits * 3)
-    qubits_state = declare(bool, size=num_qubits)
-    k = declare(int)  # iteration number
-    i = declare(int)
-    n_shots = declare(int)
-    seed = declare(int, value=0)
-    r = lib.Random()
-    r.set_seed(seed)
-    assign_random_parameters(parameters)
+parameters = []
 
-    with for_(k, 0, k < K, k + 1):
-        with for_(n_shots, 0, n_shots < shots, n_shots + 1):
-            initialize_qubits()
-            run_qv_circuit(parameters)
-            measure_state(qubits_state)
-            bool_to_int(seed, qubits_state, num_qubits)
-            save(seed, 'seed')
-            r.set_seed(seed)
-            assign_random_parameters(parameters)
+print('creating programs...')
+progs = []
+for p_i in range(M // num_templates_per_prog):
+    print(f'creating program for circuits {p_i * num_templates_per_prog} to {(p_i + 1) * num_templates_per_prog - 1}')
+    with program() as prog:
+        parameters = declare(fixed, size=num_qubits * 3)
+        qubits_state = declare(bool, size=num_qubits)
+        k = declare(int)  # iteration number
+        n_shots = declare(int)
+        seed = declare(int, value=0)
+        r = lib.Random()
+        r.set_seed(seed)
+        assign_random_parameters(parameters)
 
-qmm = QuantumMachinesManager('192.168.1.119')
-job = qmm.simulate(config_base, prog, SimulationConfig(2200))
-job.result_handles.wait_for_all_values()
-qs_res = job.result_handles.get('qs').fetch_all()['value']
-seed_res = job.result_handles.get('seed').fetch_all()['value']
+        finished = declare(bool, value=False)
+        save(finished, 'finished')
+        for _ in range(num_templates_per_prog):
+            align()
+            with for_(k, 0, k < K, k + 1):
+                with for_(n_shots, 0, n_shots < shots, n_shots + 1):
+                    initialize_qubits()
+                    qvm = QVMaker()
+                    qv_circuit = qvm.make_qv_macro()
+                    qv_circuit(parameters)
+                    measure_state(qubits_state)
+                    bool_to_int(seed, qubits_state, num_qubits)
+                r.set_seed(seed)
+                assign_random_parameters(parameters)
+        assign(finished, True)
+        save(finished, 'finished')
+    progs.append(prog)
 
-qs_res = qs_res.reshape((-1, num_qubits))
-print(qs_res)
-print(seed_res)
+qmm = QuantumMachinesManager('172.16.2.149')
+
+# qmm = QuantumMachinesManager(host='oded-36a11cb2.dev.quantum-machines.co', port=443, credentials=create_credentials())
+simulate = False
+if simulate:
+    job = qmm.simulate(qvm.config, prog, SimulationConfig(1200), flags=['auto-element-thread'])
+    job.result_handles.wait_for_all_values()
+else:
+    qm = qmm.open_qm(qvm.config)
+    print('compiling programs...')
+    pids = [qm.compile(progs[i], flags=['auto-element-thread']) for i in range(M // num_templates_per_prog)]
+    print('done.')
+    tic = time.time()
+    for j in range(M // num_templates_per_prog):
+        print(f'starting job for circuits {j * num_templates_per_prog} to {(j + 1) * num_templates_per_prog - 1}')
+        pjob = qm.queue.add_compiled(pids[j])
+        job = pjob.wait_for_execution()
+        job.result_handles.wait_for_all_values()
+        qs_res = job.result_handles.get('qs').fetch_all()['value']
+        finished_res = job.result_handles.get('finished').fetch_all()
+    toc = time.time() - tic
+    print('total time: ', toc)
+    print('CLOPS:', (K * shots * (M // num_templates_per_prog) * num_templates_per_prog * num_qubits) / toc)
+    print('circuit time + delay time: ',
+          np.diff(finished_res['timestamp']) / 1000 / num_templates_per_prog / n_shots / K,
+          'usec')
+
+# qs_res = job.result_handles.get('qs').fetch_all()['value']
+# seed_res = job.result_handles.get('seed').fetch_all()['value']
+
+if simulate:
+    job.get_simulated_samples().con1.plot()
+    job.get_simulated_samples().con2.plot()
+
+# qs_res = qs_res.reshape((-1, num_qubits))
+# print(qs_res)
+# print(seed_res)
