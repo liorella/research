@@ -8,8 +8,8 @@ from dataclasses import dataclass
 class ErrorProbs:
     cnot_bitflip: float = 0.0
     measure_bitflip: float = 0.0
-    time_over_rate_01: float = 0.0
-    time_over_rate_10: float = 0.0
+    rate_01: float = 0.0
+    rate_10: float = 0.0
 
 
 # todo: turn this into an abstract base class that will allow us to implement it (at least partially) in stim and cirq
@@ -19,7 +19,7 @@ class QECCirc:
                  creg_size: int,
                  error_probs: Optional[ErrorProbs] = None
                  ):
-        self.qreg = [0] * (4 * distance + 1)
+        self.qreg = [0] * (2 * distance + 1)
         self.creg = [False] * creg_size
         self.error_probs = ErrorProbs() if error_probs is None else error_probs
 
@@ -50,16 +50,19 @@ class QECCirc:
     def _cl_xor(self, c1, c2, cr):
         self.creg[cr] = self.creg[c1] ^ self.creg[c2]
 
-    def _wait(self, q):
+    def _wait(self, q, time):
         """
         flip qubit q with probability 1 - exp(-time_over_rate_01) if qubit is in 1 state and 1 - exp(-time_over_rate_10)
         if qubit is in state 0
         """
         if self.qreg[q] == 1:
-            tor = self.error_probs.time_over_rate_01
+            tr = time * self.error_probs.rate_01
         else:
-            tor = self.error_probs.time_over_rate_10
-        self.qreg[q] = self.qreg[q] if np.random.rand(1) < np.exp(-tor) else 1 - self.qreg[q]
+            tr = time * self.error_probs.rate_10
+        self.qreg[q] = self.qreg[q] if np.random.rand(1) < np.exp(-tr) else 1 - self.qreg[q]
+
+    def _x(self, q):
+        self.qreg[q] = 1 - self.qreg[q]
 
     def add_moment(self, ops_list):
         used_qubits = np.zeros(len(self.qreg))
@@ -71,14 +74,26 @@ class QECCirc:
             if op[0] == "M":
                 self._measure(op[1], op[2])
                 used_qubits[op[1]] += 1
-                used_qubits[op[2]] += 1
             if op[0] == "WAIT":
-                self._wait(op[1])
+                self._wait(op[1], op[2])
                 used_qubits[op[1]] += 1
             if op[0] == "CL_NOT":
                 self._cl_not(op[1])
             if op[0] == "CL_XOR":
                 self._cl_xor(op[1], op[2], op[3])
+            if op[0] == "X":
+                self._x(op[1])
+                used_qubits[op[1]] += 1
         if not np.all(used_qubits == 1):
             raise AttributeError("every qubit must be used in every moment exactly once")
 
+
+if __name__ == "__main__":
+    d = 2
+    cq = QECCirc(d, 2*d+1)
+    cq.add_moment([("X", 0)] + [("WAIT", q, 20) for q in range(1, 2*d+1)])
+    cq.add_moment([("CNOT", 0, 1), ("CNOT", 2, 3), ("WAIT", 4, 30)])
+    cq.add_moment([("CNOT", 4, 3), ("CNOT", 2, 1), ("WAIT", 0, 30)])
+    cq.add_moment([("WAIT", 0, 400), ("WAIT", 2, 400), ("WAIT", 4, 400), ("M", 1, 1), ("M", 3, 3)])
+    print("qreg = ", cq.qreg)
+    print("creg = ", cq.creg)
