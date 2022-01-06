@@ -24,14 +24,14 @@ distance = 2
 encoded_data = True
 num_rounds = 20
 num_max_iterations = 500  # to maintain reasonable time we do a constant number of rounds * iterations
-distance_vec = np.arange(2, 5, 2)
+distance_vec = np.arange(2, 5, 1)
 rounds_vec = np.arange(1, 20, 4)
 
 success_rate_matrix = []
 success_sigma_matrix = []
 for distance in distance_vec:
-    cparams = CircuitParams(t1=10e4,
-                            t2=10e4,
+    cparams = CircuitParams(t1=5e3,
+                            t2=5e3,
                             single_qubit_gate_duration=20,
                             two_qubit_gate_duration=40,
                             meas_duration=200,
@@ -48,7 +48,7 @@ for distance in distance_vec:
     success_rate_vector = []
     success_sigma_vector = []
     for num_rounds in tqdm(rounds_vec):
-        events_fraction = np.zeros(num_rounds)
+        events_fraction = np.zeros(num_rounds + 1)
         success_vector = []
         for n in range(num_max_iterations // num_rounds):
             state = quantumsim.sparsedm.SparseDM(repc.register_names)
@@ -73,7 +73,9 @@ for distance in distance_vec:
             data_meas = np.array([state.classical[cb] for cb in repc.cbit_names[::2]])
 
             # postprocessing
-            syndromes = np.array([[0] * distance] + syndromes)  # we prepend zeros to account for first round
+            data_meas_parity = repc.matching_matrix @ data_meas % 2
+            # we prepend zeros to account for first round and append perfect measurement step parity
+            syndromes = np.vstack([np.zeros(distance), syndromes, data_meas_parity])
             detection_events = np.logical_xor(syndromes[1:], syndromes[:-1])
             log.debug("detection events")
             log.debug("\n" + repr(detection_events.astype(int).T))
@@ -103,5 +105,7 @@ print("events fraction")
 print(events_fraction)
 for i in range(success_rate_matrix.shape[0]):
     plt.errorbar(rounds_vec, success_rate_matrix[i], yerr=success_sigma_matrix[i], label=f"distance {distance_vec[i]}")
+plt.xlabel('number of rounds')
+plt.ylabel('success rate')
 plt.legend()
 plt.show()
