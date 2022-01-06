@@ -47,7 +47,10 @@ class RepCodeGenerator:
     def matching_matrix(self):
         return toeplitz([1] + [0] * (self.distance - 1), [1, 1] + [0] * (self.distance - 1))
 
-    def generate_stabilizer_round(self, injected_errors=None, plot=False) -> circuit.Circuit:
+    def generate_stabilizer_round(self,
+                                  final_round=False,
+                                  injected_errors=None,
+                                  plot=False) -> circuit.Circuit:
         if injected_errors is not None:
             raise NotImplementedError
         # todo: inject errors inside the stabilizer round
@@ -84,7 +87,9 @@ class RepCodeGenerator:
 
         t_start += t_moment
         t_moment = self.params.meas_duration
-        for q, cb in zip(self.qubit_names[1::2], self.cbit_names[1::2]):
+        qubits_to_measure = self.qubit_names if final_round else self.qubit_names[1::2]
+        cbits_to_measure = self.cbit_names if final_round else self.cbit_names[1::2]
+        for q, cb in zip(qubits_to_measure, cbits_to_measure):
             c.add_gate(circuit.Measurement(q,
                                            time=t_start + t_moment / 2,
                                            sampler=self.sampler,
