@@ -1,35 +1,47 @@
+# timing guide for M1 mac:
+# distance 2 - 3.4 msec per iteration * round
+# distance 3 - 7 msec per iteration * round
+# distance 4 - 18 msec per iteration * round
+from itertools import cycle
+
 import quantumsim  # https://gitlab.com/quantumsim/quantumsim, branch: stable/v0.2
 import numpy as np
+import qutip
 from pymatching import Matching
 import matplotlib.pyplot as plt
 import logging
 
 from tqdm import tqdm
 
+from qecsim.lib import quantumsim_dm_to_qutip_dm
 from qecsim.rep_code_generator import RepCodeGenerator, CircuitParams
-
-log = logging.getLogger('qec')
-log.setLevel(logging.INFO)
-ch = logging.StreamHandler()
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-ch.setFormatter(formatter)
-log.addHandler(ch)
-
 
 # run simulation
 ########
 
 plot = False
-distance = 2
-encoded_data = True
-num_rounds = 20
-num_max_iterations = 500  # to maintain reasonable time we do a constant number of rounds * iterations
-distance_vec = np.arange(2, 5, 1)
-rounds_vec = np.arange(1, 20, 4)
+log = logging.getLogger('qec')
+log.setLevel(logging.INFO)
+# distance = 4
+encoded_state = '+'
 
-success_rate_matrix = []
+if encoded_state == '1':
+    expected_prob = 1
+elif encoded_state == '0':
+    expected_prob = 0
+else:
+    expected_prob = 0.5
+
+# num_rounds = 20
+num_max_iterations = int(1e4)
+distance_vec = np.arange(2, 4, 1)
+rounds_vec = np.arange(1, 10, 2)
+
+logical_1_prob_matrix = []
 success_sigma_matrix = []
+log.info("starting simulation")
 for distance in distance_vec:
+    log.info(f"distance = {distance}")
     cparams = CircuitParams(t1=5e3,
                             t2=5e3,
                             single_qubit_gate_duration=20,
@@ -42,21 +54,28 @@ for distance in distance_vec:
                             circuit_params=cparams
                             )
 
-    stabilizer = repc.generate_stabilizer_round(plot=plot)
-
     # start cycle
-    success_rate_vector = []
-    success_sigma_vector = []
-    for num_rounds in tqdm(rounds_vec):
+    stabilizer = repc.generate_stabilizer_round(plot=plot)
+    logical_1_prob_vector = []
+    logical_1_sigma_vector = []
+    for num_rounds in rounds_vec:
+        log.info(f'rounds = {num_rounds}')
         events_fraction = np.zeros(num_rounds + 1)
-        success_vector = []
-        for n in range(num_max_iterations // num_rounds):
+        log_state_outcome_vector = []
+        for n in tqdm(range(num_max_iterations)):
             state = quantumsim.sparsedm.SparseDM(repc.register_names)
             syndromes = []
-            if encoded_data:
-                repc.generate_logical_X(plot=plot).apply_to(state)
 
-            # repc.generate_bitflip_error('0').apply_to(state)  # for testing purposes
+            repc.generate_state_encoder(encoded_state, plot=plot).apply_to(state)
+            if plot and distance == 2:  # currently hardcoded to this distance
+                state.renormalize()
+                qdm = quantumsim_dm_to_qutip_dm(state)
+                data_qdm = qdm.ptrace(range(2, 5))
+                qutip.matrix_histogram_complex(data_qdm)
+                plt.title('data qubits DM')
+                plt.show()
+            # for i in range(0, 4, 2):
+            #     repc.generate_bitflip_error(str(i), plot=plot).apply_to(state)  # for testing purposes
 
             for i in range(num_rounds - 1):
                 stabilizer.apply_to(state)
@@ -68,6 +87,13 @@ for distance in distance_vec:
                         to_reset.append(q)
                 repc.generate_active_reset(to_reset).apply_to(state)
 
+            if plot and distance == 2:  # currently hardcoded to this distance
+                state.renormalize()
+                qdm = quantumsim_dm_to_qutip_dm(state)
+                data_qdm = qdm.ptrace(range(2, 5))
+                qutip.matrix_histogram_complex(data_qdm)
+                plt.title(f'data qubits DM after {num_rounds} rounds')
+                plt.show()
             repc.generate_stabilizer_round(final_round=True, plot=plot).apply_to(state)
             syndromes.append([state.classical[cb] for cb in repc.cbit_names[1::2]])
             data_meas = np.array([state.classical[cb] for cb in repc.cbit_names[::2]])
@@ -84,28 +110,33 @@ for distance in distance_vec:
             log.debug(pauli_frame)
             log.debug("data qubits meas result")
             log.debug(data_meas)
-            recovered = np.logical_xor(data_meas, pauli_frame)
+            recovered = np.logical_xor(data_meas, pauli_frame).astype(int)
             log.debug("recovered state")
-            log.debug(recovered.astype(int))
-            success = not np.any(np.logical_xor(recovered, [encoded_data] * len(recovered)))
-            log.debug(f"success = {success}")
-            success_vector.append(success)
+            log.debug(recovered)
+            assert np.all(recovered) == recovered[0], f"decoder failed - recovered value is {recovered}"
+            log_state_outcome = recovered[0]
+            log.debug(f"logical state outcome = {log_state_outcome}")
+            log_state_outcome_vector.append(log_state_outcome)
             events_fraction = n / (n + 1) * events_fraction + 1 / (n + 1) * detection_events.mean(1)
-        success_rate = np.array(success_vector).mean()
-        success_sigma = np.sqrt(success_rate * (1 - success_rate) / len(success_vector))  # binomial distribution
-        success_rate_vector.append(success_rate)
-        success_sigma_vector.append(success_sigma)
-    success_rate_matrix.append(success_rate_vector)
-    success_sigma_matrix.append(success_sigma_vector)
+        logical_1_prob = np.array(log_state_outcome_vector).mean()
+        logical_1_sigma = np.sqrt(logical_1_prob * (1 - logical_1_prob) / len(log_state_outcome_vector))  # binomial distribution
+        logical_1_prob_vector.append(logical_1_prob)
+        logical_1_sigma_vector.append(logical_1_sigma)
+    logical_1_prob_matrix.append(logical_1_prob_vector)
+    success_sigma_matrix.append(logical_1_sigma_vector)
 
-success_rate_matrix = np.array(success_rate_matrix)
+logical_1_prob_matrix = np.array(logical_1_prob_matrix)
 success_sigma_matrix = np.array(success_sigma_matrix)
+trace_distance_matrix = np.abs(expected_prob - logical_1_prob_matrix)
+log.info("simulation done")
 
 print("events fraction")
 print(events_fraction)
-for i in range(success_rate_matrix.shape[0]):
-    plt.errorbar(rounds_vec, success_rate_matrix[i], yerr=success_sigma_matrix[i], label=f"distance {distance_vec[i]}")
+for i in range(logical_1_prob_matrix.shape[0]):
+    plt.errorbar(rounds_vec, trace_distance_matrix[i], yerr=success_sigma_matrix[i], label=f"distance {distance_vec[i]}")
+plt.title(f'encoded state =|{encoded_state}>')
 plt.xlabel('number of rounds')
-plt.ylabel('success rate')
+plt.ylabel('trace distance')
 plt.legend()
+plt.grid('all')
 plt.show()

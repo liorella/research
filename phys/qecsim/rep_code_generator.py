@@ -47,6 +47,72 @@ class RepCodeGenerator:
     def matching_matrix(self):
         return toeplitz([1] + [0] * (self.distance - 1), [1, 1] + [0] * (self.distance - 1))
 
+    def generate_state_encoder(self, state: str, plot=False) -> circuit.Circuit:
+        """
+        prepare an encoded state along one of the cardinal points in the logical Bloch sphere
+
+        :param state: either '0', '1', '+', '-', 'i', '-i'
+        :param plot: plot circuit
+        :return: a circuit object which encodes the state
+        """
+        c = self.init_circuit(f"state encoder for |{state}>")
+
+        t_start = 0
+        t_moment = self.params.single_qubit_gate_duration
+        allowed_states = ['0', '1', '+', '-', '+i', '-i']
+        if state not in allowed_states:
+            raise ValueError(f'state must be one of {allowed_states}')
+        if state == '0':
+            return c
+        if state == '1':
+            return self.generate_logical_X(plot)
+        if state == '+':
+            c.add_gate(circuit.RotateY('0',
+                                       t_start + t_moment / 2,
+                                       np.pi / 2))
+        if state == '-':
+            c.add_gate(circuit.RotateY('0',
+                                       t_start + t_moment / 2,
+                                       -np.pi / 2))
+
+        if state == '+i':
+            c.add_gate(circuit.RotateX('0',
+                                       t_start + t_moment / 2,
+                                       -np.pi / 2))
+
+        if state == '-i':
+            c.add_gate(circuit.RotateX('0',
+                                       t_start + t_moment / 2,
+                                       np.pi / 2))
+
+        for q in self.qubit_names[2::2]:
+            c.add_gate(circuit.RotateY(q,
+                                       t_start + t_moment / 2,
+                                       np.pi / 2))
+
+        for q in self.qubit_names[2::2]:
+            t_start += t_moment
+            t_moment = self.params.two_qubit_gate_duration
+            c.add_gate(circuit.CPhase('0', q,
+                                      t_start + t_moment / 2))
+
+        t_start += t_moment
+        t_moment = self.params.single_qubit_gate_duration
+        for q in self.qubit_names[2::2]:
+            c.add_gate(circuit.RotateY(q,
+                                       t_start + t_moment / 2,
+                                       -np.pi / 2))
+
+        c.order()
+        t_start += t_moment
+        c.add_waiting_gates(0, t_start)
+
+        if plot:
+            fig, ax = c.plot()
+            fig.set_figwidth(15)
+            plt.show()
+        return c
+
     def generate_stabilizer_round(self,
                                   final_round=False,
                                   injected_errors=None,
@@ -68,13 +134,13 @@ class RepCodeGenerator:
 
         t_start += t_moment
         t_moment = self.params.two_qubit_gate_duration
-        for q1, q2 in zip(self.qubit_names[:-1:2], self.qubit_names[1::2]):
+        for q1, q2 in zip(self.qubit_names[2::2], self.qubit_names[1::2]):
             c.add_gate(circuit.CPhase(q1, q2,
                                       t_start + t_moment / 2))
 
         t_start += t_moment
         t_moment = self.params.two_qubit_gate_duration
-        for q1, q2 in zip(self.qubit_names[2::2], self.qubit_names[1::2]):
+        for q1, q2 in zip(self.qubit_names[:-1:2], self.qubit_names[1::2]):
             c.add_gate(circuit.CPhase(q1, q2,
                                       t_start + t_moment / 2))
 
