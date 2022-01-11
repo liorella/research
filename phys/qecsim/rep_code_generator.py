@@ -204,13 +204,13 @@ class RepCodeGenerator:
         return c
 
     def generate_active_reset(self, qubit_names: Iterable[str], plot=False) -> circuit.Circuit:
-        c = self.init_circuit()
+        c = self.init_circuit('active reset')
         t_start = 0
         t_moment = self.params.reset_latency
         # only wait for the latency period
 
         t_start += t_moment
-        t_moment = self.params.single_qubit_gate_duration
+        t_moment = self.params.reset_duration
 
         for q in qubit_names:
             c.add_gate(circuit.RotateX(q,
