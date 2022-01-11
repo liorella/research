@@ -2,11 +2,13 @@ from dataclasses import dataclass
 from typing import Iterable
 
 import numpy as np
+from dataclasses_json import dataclass_json
 from matplotlib import pyplot as plt
 from quantumsim import circuit as circuit
 from scipy.linalg import toeplitz
 
 
+@dataclass_json
 @dataclass
 class CircuitParams:
     t1: float
