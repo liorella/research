@@ -24,7 +24,7 @@ sdh = SimDataHandler()
 plot = False
 sdh.log.setLevel(logging.INFO)
 # distance = 4
-encoded_state = '1'
+encoded_state = '+'
 
 if encoded_state == '1':
     expected_prob = 1
@@ -34,7 +34,7 @@ else:
     expected_prob = 0.5
 
 # num_rounds = 20
-num_max_iterations = int(1e1)
+num_max_iterations = int(1e4)
 distance_vec = np.arange(2, 4, 1)
 rounds_vec = np.arange(1, 10, 2)
 
@@ -43,7 +43,7 @@ cparams = CircuitParams(t1=15e3,
                         single_qubit_gate_duration=20,
                         two_qubit_gate_duration=40,
                         meas_duration=400,
-                        reset_duration=250,
+                        reset_duration=0,
                         reset_latency=0)
 logical_1_prob_matrix = []
 success_sigma_matrix = []
@@ -56,6 +56,8 @@ for distance in distance_vec:
                             )
 
     # start cycle
+    # f_vec = np.zeros(distance)
+    # meas_previous_vec = np.zeros(distance)
     stabilizer = repc.generate_stabilizer_round(plot=plot)
     logical_1_prob_vector = []
     logical_1_sigma_vector = []
@@ -133,7 +135,7 @@ success_sigma_matrix = np.array(success_sigma_matrix)
 trace_distance_matrix = np.abs(expected_prob - logical_1_prob_matrix)
 sdh.log.info("simulation done")
 
-sdh.init_save_folder('test')
+sdh.init_save_folder('plus_with_feedback')
 print("events fraction")
 print(events_fraction)
 f1 = plt.figure(1)
