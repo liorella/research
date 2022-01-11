@@ -209,7 +209,7 @@ class RepCodeGenerator:
         t_moment = self.params.reset_latency
         # only wait for the latency period
 
-        t_start += t_start
+        t_start += t_moment
         t_moment = self.params.single_qubit_gate_duration
 
         for q in qubit_names:

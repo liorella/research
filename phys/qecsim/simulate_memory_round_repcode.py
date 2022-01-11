@@ -23,7 +23,7 @@ plot = False
 log = logging.getLogger('qec')
 log.setLevel(logging.INFO)
 # distance = 4
-encoded_state = '+'
+encoded_state = '1'
 
 if encoded_state == '1':
     expected_prob = 1
@@ -37,18 +37,18 @@ num_max_iterations = int(1e4)
 distance_vec = np.arange(2, 4, 1)
 rounds_vec = np.arange(1, 10, 2)
 
+cparams = CircuitParams(t1=15e3,
+                        t2=15e3,
+                        single_qubit_gate_duration=20,
+                        two_qubit_gate_duration=40,
+                        meas_duration=400,
+                        reset_duration=0,
+                        reset_latency=0)
 logical_1_prob_matrix = []
 success_sigma_matrix = []
 log.info("starting simulation")
 for distance in distance_vec:
     log.info(f"distance = {distance}")
-    cparams = CircuitParams(t1=5e3,
-                            t2=5e3,
-                            single_qubit_gate_duration=20,
-                            two_qubit_gate_duration=40,
-                            meas_duration=200,
-                            reset_duration=20,
-                            reset_latency=0)
 
     repc = RepCodeGenerator(distance=distance,
                             circuit_params=cparams
@@ -105,7 +105,8 @@ for distance in distance_vec:
             detection_events = np.logical_xor(syndromes[1:], syndromes[:-1])
             log.debug("detection events")
             log.debug("\n" + repr(detection_events.astype(int).T))
-            pauli_frame = Matching(repc.matching_matrix, repetitions=detection_events.shape[0]).decode(detection_events.T)
+            pauli_frame = Matching(repc.matching_matrix, repetitions=detection_events.shape[0]).decode(
+                detection_events.T)
             log.debug("Pauli frame")
             log.debug(pauli_frame)
             log.debug("data qubits meas result")
@@ -119,7 +120,8 @@ for distance in distance_vec:
             log_state_outcome_vector.append(log_state_outcome)
             events_fraction = n / (n + 1) * events_fraction + 1 / (n + 1) * detection_events.mean(1)
         logical_1_prob = np.array(log_state_outcome_vector).mean()
-        logical_1_sigma = np.sqrt(logical_1_prob * (1 - logical_1_prob) / len(log_state_outcome_vector))  # binomial distribution
+        logical_1_sigma = np.sqrt(
+            logical_1_prob * (1 - logical_1_prob) / len(log_state_outcome_vector))  # binomial distribution
         logical_1_prob_vector.append(logical_1_prob)
         logical_1_sigma_vector.append(logical_1_sigma)
     logical_1_prob_matrix.append(logical_1_prob_vector)
@@ -133,7 +135,8 @@ log.info("simulation done")
 print("events fraction")
 print(events_fraction)
 for i in range(logical_1_prob_matrix.shape[0]):
-    plt.errorbar(rounds_vec, trace_distance_matrix[i], yerr=success_sigma_matrix[i], label=f"distance {distance_vec[i]}")
+    plt.errorbar(rounds_vec, trace_distance_matrix[i], yerr=success_sigma_matrix[i],
+                 label=f"distance {distance_vec[i]}")
 plt.title(f'encoded state =|{encoded_state}>')
 plt.xlabel('number of rounds')
 plt.ylabel('trace distance')
