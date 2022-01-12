@@ -24,7 +24,7 @@ sdh = SimDataHandler()
 plot = False
 sdh.log.setLevel(logging.INFO)
 # distance = 4
-encoded_state = '+'
+encoded_state = '1'
 
 if encoded_state == '1':
     expected_prob = 1
@@ -43,7 +43,7 @@ cparams = CircuitParams(t1=15e3,
                         single_qubit_gate_duration=20,
                         two_qubit_gate_duration=40,
                         meas_duration=400,
-                        reset_duration=0,
+                        reset_duration=20,
                         reset_latency=0)
 logical_1_prob_matrix = []
 success_sigma_matrix = []
@@ -56,8 +56,7 @@ for distance in distance_vec:
                             )
 
     # start cycle
-    # f_vec = np.zeros(distance)
-    # meas_previous_vec = np.zeros(distance)
+
     stabilizer = repc.generate_stabilizer_round(plot=plot)
     logical_1_prob_vector = []
     logical_1_sigma_vector = []
@@ -66,8 +65,12 @@ for distance in distance_vec:
         events_fraction = np.zeros(num_rounds + 1)
         log_state_outcome_vector = []
         for n in tqdm(range(num_max_iterations)):
+
+            f_vec = np.zeros(distance)
+            meas_previous_vec = np.zeros(distance)
+
             state = quantumsim.sparsedm.SparseDM(repc.register_names)
-            syndromes = []
+            meas_matrix = []
 
             repc.generate_state_encoder(encoded_state, plot=plot).apply_to(state)
             if plot and distance == 2:  # currently hardcoded to this distance
@@ -77,17 +80,21 @@ for distance in distance_vec:
                 qutip.matrix_histogram_complex(data_qdm)
                 plt.title('data qubits DM')
                 plt.show()
-            # for i in range(0, 4, 2):
+            # for i in range(1, 4, 2):
             #     repc.generate_bitflip_error(str(i), plot=plot).apply_to(state)  # for testing purposes
-            #
+
             for i in range(num_rounds - 1):
                 stabilizer.apply_to(state)
-                syndromes.append([state.classical[cb] for cb in repc.cbit_names[1::2]])
-                # apply active reset
+                meas_matrix.append(np.array([state.classical[cb] for cb in repc.cbit_names[1::2]]))
+                f_vec = np.logical_xor(f_vec, meas_previous_vec).astype(int)
+                meas_previous_vec = meas_matrix[-1]
+                sdh.log.debug(f'measured = {meas_matrix[-1]}')
+                sdh.log.debug(f'f_vec = {f_vec}')
+                # apply active parity tracking
                 to_reset = []
-                for q, cb in zip(repc.qubit_names[1::2], repc.cbit_names[1::2]):
-                    if state.classical[cb] == 1:
-                        to_reset.append(q)
+                for a, f in enumerate(f_vec):
+                    if f == 1:
+                        to_reset.append(str(2 * a + 1))  # this follows our qubit naming convention
                 repc.generate_active_reset(to_reset, plot=plot).apply_to(state)
 
             if plot and distance == 2:  # currently hardcoded to this distance
@@ -97,15 +104,19 @@ for distance in distance_vec:
                 qutip.matrix_histogram_complex(data_qdm)
                 plt.title(f'data qubits DM after {num_rounds} rounds')
                 plt.show()
+
             repc.generate_stabilizer_round(final_round=True, plot=plot).apply_to(state)
-            syndromes.append([state.classical[cb] for cb in repc.cbit_names[1::2]])
+            meas_matrix.append([state.classical[cb] for cb in repc.cbit_names[1::2]])
+            f_vec = np.logical_xor(f_vec, meas_previous_vec).astype(int)
+            sdh.log.debug(f'measured = {meas_matrix[-1]}')
+            sdh.log.debug(f'f_vec = {f_vec}')
             data_meas = np.array([state.classical[cb] for cb in repc.cbit_names[::2]])
 
             # postprocessing
             data_meas_parity = repc.matching_matrix @ data_meas % 2
             # we prepend zeros to account for first round and append perfect measurement step parity
-            syndromes = np.vstack([np.zeros(distance), syndromes, data_meas_parity])
-            detection_events = np.logical_xor(syndromes[1:], syndromes[:-1])
+            last_round_meas = np.logical_xor(np.logical_xor(data_meas_parity, f_vec), meas_matrix[-1])
+            detection_events = np.r_[meas_matrix, last_round_meas[np.newaxis, :]]
             sdh.log.debug("detection events")
             sdh.log.debug("\n" + repr(detection_events.astype(int).T))
             pauli_frame = Matching(repc.matching_matrix, repetitions=detection_events.shape[0]).decode(
@@ -117,7 +128,7 @@ for distance in distance_vec:
             recovered = np.logical_xor(data_meas, pauli_frame).astype(int)
             sdh.log.debug("recovered state")
             sdh.log.debug(recovered)
-            assert np.all(recovered) == recovered[0], f"decoder failed - recovered value is {recovered}"
+            assert np.all(recovered == recovered[0]), f"decoder failed - recovered value is {recovered}"
             log_state_outcome = recovered[0]
             sdh.log.debug(f"logical state outcome = {log_state_outcome}")
             log_state_outcome_vector.append(log_state_outcome)

@@ -34,7 +34,7 @@ else:
     expected_prob = 0.5
 
 # num_rounds = 20
-num_max_iterations = int(1e4)
+num_iterations = int(1e1)
 distance_vec = np.arange(2, 4, 1)
 rounds_vec = np.arange(1, 10, 2)
 
@@ -63,7 +63,7 @@ for distance in distance_vec:
         sdh.log.info(f'rounds = {num_rounds}')
         events_fraction = np.zeros(num_rounds + 1)
         log_state_outcome_vector = []
-        for n in tqdm(range(num_max_iterations)):
+        for n in tqdm(range(num_iterations)):
             state = quantumsim.sparsedm.SparseDM(repc.register_names)
             syndromes = []
 
@@ -115,7 +115,7 @@ for distance in distance_vec:
             recovered = np.logical_xor(data_meas, pauli_frame).astype(int)
             sdh.log.debug("recovered state")
             sdh.log.debug(recovered)
-            assert np.all(recovered) == recovered[0], f"decoder failed - recovered value is {recovered}"
+            assert np.all(recovered == recovered[0]), f"decoder failed - recovered value is {recovered}"
             log_state_outcome = recovered[0]
             sdh.log.debug(f"logical state outcome = {log_state_outcome}")
             log_state_outcome_vector.append(log_state_outcome)
