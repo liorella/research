@@ -34,7 +34,7 @@ else:
     expected_prob = 0.5
 
 # num_rounds = 20
-num_max_iterations = int(1e4)
+num_iterations = int(1e1)
 distance_vec = np.arange(2, 4, 1)
 rounds_vec = np.arange(1, 10, 2)
 
@@ -64,7 +64,7 @@ for distance in distance_vec:
         sdh.log.info(f'rounds = {num_rounds}')
         events_fraction = np.zeros(num_rounds + 1)
         log_state_outcome_vector = []
-        for n in tqdm(range(num_max_iterations)):
+        for n in tqdm(range(num_iterations)):
 
             f_vec = np.zeros(distance)
             meas_previous_vec = np.zeros(distance)
@@ -146,7 +146,8 @@ success_sigma_matrix = np.array(success_sigma_matrix)
 trace_distance_matrix = np.abs(expected_prob - logical_1_prob_matrix)
 sdh.log.info("simulation done")
 
-sdh.init_save_folder('plus_with_feedback')
+sdh.init_save_folder('apt')
+sdh.log.info(f'active parity tracking, {num_iterations} repetitions\n')
 print("events fraction")
 print(events_fraction)
 f1 = plt.figure(1)

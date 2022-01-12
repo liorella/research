@@ -26,7 +26,7 @@ class SimDataHandler:
         formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
         self._save_dir = _mk_save_dir(name)
 
-        fh = logging.FileHandler(os.path.join(self._save_dir, 'log.html'))
+        fh = logging.FileHandler(os.path.join('data/', 'log.html'))
         fh.setFormatter(formatter)
         self.log.addHandler(fh)
 
