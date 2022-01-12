@@ -15,7 +15,8 @@ from tqdm import tqdm
 from vlogging import VisualRecord
 
 from qecsim.lib import quantumsim_dm_to_qutip_dm, SimDataHandler
-from qecsim.rep_code_generator import RepCodeGenerator, CircuitParams
+from qecsim.rep_code_generator import RepCodeGenerator
+from qecsim.qec_generator import CircuitParams
 
 # run simulation
 ########

@@ -5,7 +5,7 @@ from quantumsim.sparsedm import SparseDM
 from qutip import fock_dm, Qobj, tensor
 import os
 import numpy as np
-from qecsim.rep_code_generator import CircuitParams
+from qecsim.qec_generator import CircuitParams
 
 from vlogging import VisualRecord
 

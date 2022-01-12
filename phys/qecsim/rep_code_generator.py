@@ -1,53 +1,21 @@
-from dataclasses import dataclass
 from typing import Iterable
 
 import numpy as np
-from dataclasses_json import dataclass_json
 from matplotlib import pyplot as plt
 from quantumsim import circuit as circuit
-from scipy.linalg import toeplitz
+
+from qecsim.qec_generator import QECGenerator, CircuitParams
 
 
-@dataclass_json
-@dataclass
-class CircuitParams:
-    t1: float
-    t2: float
-    single_qubit_gate_duration: float
-    two_qubit_gate_duration: float
-    meas_duration: float
-    reset_duration: float
-    reset_latency: float
-
-
-class RepCodeGenerator:
+class RepCodeGenerator(QECGenerator):
     def __init__(self, distance: int, circuit_params: CircuitParams):
-        self.distance = distance
-        self.params = circuit_params
-        self.sampler = circuit.BiasedSampler(readout_error=0, seed=42, alpha=1)
-
-        self.qubits = [
-            circuit.Qubit(str(i), t1=self.params.t1, t2=self.params.t2) for i in range(2 * self.distance + 1)
-        ]
+        super().__init__(distance, circuit_params)
         self.cbits = [
             circuit.ClassicalBit("m" + str(i)) for i in range(2 * self.distance + 1)
         ]
-
-    @property
-    def register_names(self):
-        return [q.name for q in self.qubits] + [cb.name for cb in self.cbits]
-
-    @property
-    def qubit_names(self):
-        return [q.name for q in self.qubits]
-
-    @property
-    def cbit_names(self):
-        return [cb.name for cb in self.cbits]
-
-    @property
-    def matching_matrix(self):
-        return toeplitz([1] + [0] * (self.distance - 1), [1, 1] + [0] * (self.distance - 1))
+        self.qubits = [
+            circuit.Qubit(str(i), t1=self.params.t1, t2=self.params.t2) for i in range(2 * self.distance + 1)
+        ]
 
     def generate_state_encoder(self, state: str, plot=False) -> circuit.Circuit:
         """
@@ -67,7 +35,7 @@ class RepCodeGenerator:
         if state == '0':
             return c
         if state == '1':
-            return self.generate_logical_X(plot)
+            return self.generate_logical_x(plot)
         if state == '+':
             c.add_gate(circuit.RotateY('0',
                                        t_start + t_moment / 2,
@@ -174,35 +142,24 @@ class RepCodeGenerator:
             plt.show()
         return c
 
-    def init_circuit(self, name=None):
-        if name is None:
-            name = "unnamed circuit"
-        c = circuit.Circuit(name)
-        for q in self.qubits:
-            c.add_qubit(q)
-        for cb in self.cbits:
-            c.add_qubit(cb)
-        return c
-
-    def generate_bitflip_error(self, qubit_names: Iterable[str], plot=False) -> circuit.Circuit:
-        c = self.init_circuit("bitflip error")
-
+    def generate_logical_x(self, plot=False):
+        c = self.init_circuit()
         t_start = 0
         t_moment = self.params.single_qubit_gate_duration
-        for q in qubit_names:
-            c.add_gate(circuit.RotateX(q,
-                                       t_start + t_moment / 2,
-                                       np.pi))
 
+        for q, cb in zip(self.qubit_names[::2], self.cbit_names[::2]):
+            c.add_gate(circuit.RotateX(q,
+                                       time=t_start + t_moment / 2,
+                                       angle=np.pi
+                                       ))
         t_start += t_moment
         c.add_waiting_gates(0, t_start)
         c.order()
 
         if plot:
             fig, ax = c.plot()
-            fig.set_figwidth(15)
+            fig.set_figwidth(10)
             plt.show()
-
         return c
 
     def generate_active_reset(self, qubit_names: Iterable[str], plot=False) -> circuit.Circuit:
@@ -239,26 +196,6 @@ class RepCodeGenerator:
                                            sampler=self.sampler,
                                            output_bit=cb
                                            ))
-        t_start += t_moment
-        c.add_waiting_gates(0, t_start)
-        c.order()
-
-        if plot:
-            fig, ax = c.plot()
-            fig.set_figwidth(10)
-            plt.show()
-        return c
-
-    def generate_logical_X(self, plot=False):
-        c = self.init_circuit()
-        t_start = 0
-        t_moment = self.params.single_qubit_gate_duration
-
-        for q, cb in zip(self.qubit_names[::2], self.cbit_names[::2]):
-            c.add_gate(circuit.RotateX(q,
-                                       time=t_start + t_moment / 2,
-                                       angle=np.pi
-                                       ))
         t_start += t_moment
         c.add_waiting_gates(0, t_start)
         c.order()

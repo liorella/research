@@ -4,7 +4,8 @@ from pymatching import Matching
 
 import logging
 
-from qecsim.rep_code_generator import RepCodeGenerator, CircuitParams
+from qecsim.rep_code_generator import RepCodeGenerator
+from qecsim.qec_generator import CircuitParams
 
 log = logging.getLogger('qec')
 log.setLevel(logging.INFO)
@@ -40,7 +41,7 @@ if __name__ == "__main__":
         state = quantumsim.sparsedm.SparseDM(repc.register_names)
         results = []
         if encoded_data:
-            repc.generate_logical_X(plot=plot).apply_to(state)
+            repc.generate_logical_x(plot=plot).apply_to(state)
         for i in range(3):
             stabilizer.apply_to(state)
             results.append([state.classical[cb] for cb in repc.cbit_names[1::2]])
