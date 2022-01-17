@@ -16,6 +16,8 @@ class CircuitParams:
     t2: float
     single_qubit_gate_duration: float
     two_qubit_gate_duration: float
+    single_qubit_depolarization_rate: float
+    two_qubit_depolarization_rate: float
     meas_duration: float
     reset_duration: float
     reset_latency: float

@@ -39,39 +39,46 @@ class RepCodeGenerator(QECGenerator):
         if state == '+':
             c.add_gate(circuit.RotateY('0',
                                        t_start + t_moment / 2,
-                                       np.pi / 2))
+                                       np.pi / 2,
+                                       dephasing_angle=self.params.single_qubit_depolarization_rate))
         if state == '-':
             c.add_gate(circuit.RotateY('0',
                                        t_start + t_moment / 2,
-                                       -np.pi / 2))
+                                       -np.pi / 2,
+                                       dephasing_angle=self.params.single_qubit_depolarization_rate))
 
         if state == '+i':
             c.add_gate(circuit.RotateX('0',
                                        t_start + t_moment / 2,
-                                       -np.pi / 2))
+                                       -np.pi / 2,
+                                       dephasing_angle=self.params.single_qubit_depolarization_rate))
 
         if state == '-i':
             c.add_gate(circuit.RotateX('0',
                                        t_start + t_moment / 2,
-                                       np.pi / 2))
+                                       np.pi / 2,
+                                       dephasing_angle=self.params.single_qubit_depolarization_rate))
 
         for q in self.qubit_names[2::2]:
             c.add_gate(circuit.RotateY(q,
                                        t_start + t_moment / 2,
-                                       np.pi / 2))
+                                       np.pi / 2,
+                                       dephasing_angle=self.params.single_qubit_depolarization_rate))
 
         for q in self.qubit_names[2::2]:
             t_start += t_moment
             t_moment = self.params.two_qubit_gate_duration
-            c.add_gate(circuit.CPhase('0', q,
-                                      t_start + t_moment / 2))
+            c.add_gate(circuit.NoisyCPhase('0', q,
+                                           t_start + t_moment / 2,
+                                           dephase_var=self.params.two_qubit_depolarization_rate))
 
         t_start += t_moment
         t_moment = self.params.single_qubit_gate_duration
         for q in self.qubit_names[2::2]:
             c.add_gate(circuit.RotateY(q,
                                        t_start + t_moment / 2,
-                                       -np.pi / 2))
+                                       -np.pi / 2,
+                                       dephasing_angle=self.params.single_qubit_depolarization_rate))
 
         c.order()
         t_start += t_moment
@@ -100,26 +107,30 @@ class RepCodeGenerator(QECGenerator):
         for q in self.qubit_names[1::2]:
             c.add_gate(circuit.RotateY(q,
                                        t_start + t_moment / 2,
-                                       np.pi / 2))
+                                       np.pi / 2,
+                                       dephasing_angle=self.params.single_qubit_depolarization_rate))
 
         t_start += t_moment
         t_moment = self.params.two_qubit_gate_duration
         for q1, q2 in zip(self.qubit_names[2::2], self.qubit_names[1::2]):
-            c.add_gate(circuit.CPhase(q1, q2,
-                                      t_start + t_moment / 2))
+            c.add_gate(circuit.NoisyCPhase(q1, q2,
+                                           t_start + t_moment / 2,
+                                           dephase_var=self.params.two_qubit_depolarization_rate))
 
         t_start += t_moment
         t_moment = self.params.two_qubit_gate_duration
         for q1, q2 in zip(self.qubit_names[:-1:2], self.qubit_names[1::2]):
-            c.add_gate(circuit.CPhase(q1, q2,
-                                      t_start + t_moment / 2))
+            c.add_gate(circuit.NoisyCPhase(q1, q2,
+                                           t_start + t_moment / 2,
+                                           dephase_var=self.params.two_qubit_depolarization_rate))
 
         t_start += t_moment
         t_moment = self.params.single_qubit_gate_duration
         for q in self.qubit_names[1::2]:
             c.add_gate(circuit.RotateY(q,
                                        t_start + t_moment / 2,
-                                       -np.pi / 2))
+                                       -np.pi / 2,
+                                       dephasing_angle=self.params.single_qubit_depolarization_rate))
 
         t_start += t_moment
         t_moment = self.params.meas_duration
@@ -150,7 +161,8 @@ class RepCodeGenerator(QECGenerator):
         for q, cb in zip(self.qubit_names[::2], self.cbit_names[::2]):
             c.add_gate(circuit.RotateX(q,
                                        time=t_start + t_moment / 2,
-                                       angle=np.pi
+                                       angle=np.pi,
+                                       dephasing_angle=self.params.single_qubit_depolarization_rate
                                        ))
         t_start += t_moment
         c.add_waiting_gates(0, t_start)
@@ -174,7 +186,8 @@ class RepCodeGenerator(QECGenerator):
         for q in qubit_names:
             c.add_gate(circuit.RotateX(q,
                                        t_start + t_moment / 2,
-                                       np.pi))
+                                       np.pi,
+                                       dephasing_angle=self.params.single_qubit_depolarization_rate))
         t_start += t_moment
         c.add_waiting_gates(0, t_start)
         c.order()

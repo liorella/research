@@ -25,7 +25,7 @@ sdh = SimDataHandler()
 plot = False
 sdh.log.setLevel(logging.INFO)
 # distance = 4
-encoded_state = '+'
+encoded_state = '1'
 
 if encoded_state == '1':
     expected_prob = 1
@@ -40,12 +40,14 @@ distance_vec = np.arange(2, 4, 1)
 rounds_vec = np.arange(1, 10, 2)
 
 cparams = CircuitParams(t1=15e3,
-                        t2=15e3,
-                        single_qubit_gate_duration=20,
-                        two_qubit_gate_duration=40,
-                        meas_duration=400,
+                        t2=19e3,
+                        single_qubit_gate_duration=14,
+                        two_qubit_gate_duration=26,
+                        single_qubit_depolarization_rate=1.1e-3,
+                        two_qubit_depolarization_rate=6.6e-3,
+                        meas_duration=600,
                         reset_duration=0,
-                        reset_latency=0)
+                        reset_latency=300)
 logical_1_prob_matrix = []
 success_sigma_matrix = []
 sdh.log.info("starting simulation")
@@ -152,4 +154,5 @@ sdh.save_data({'rounds_vec': rounds_vec,
                'trace_distance_matrix': trace_distance_matrix,
                'success_sigma_matrix': success_sigma_matrix})
 sdh.save_params(cparams)
+#plt.savefig("google_params_active_reset.png")
 plt.show()
