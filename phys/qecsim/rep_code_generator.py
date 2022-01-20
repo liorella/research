@@ -1,8 +1,9 @@
 from typing import Iterable
-
+import itertools
 import numpy as np
 from matplotlib import pyplot as plt
 from quantumsim import circuit as circuit
+from quantumsim import ptm
 
 from qecsim.qec_generator import QECGenerator, CircuitParams
 
@@ -73,9 +74,9 @@ class RepCodeGenerator(QECGenerator):
         for q in self.qubit_names[2::2]:
             t_start += t_moment
             t_moment = self.params.two_qubit_gate_duration
-            c.add_gate(circuit.NoisyCPhase('0', q,
-                                           t_start + t_moment / 2,
-                                           dephase_var=self.params.two_qubit_depolarization_rate))
+            c.add_gate(circuit.TwoPTMGate('0', q,
+                                           noisy_c_phase_ptm(self.params.two_qubit_depolarization_rate),
+                                           t_start + t_moment / 2))
 
         t_start += t_moment
         t_moment = self.params.single_qubit_gate_duration
@@ -120,16 +121,16 @@ class RepCodeGenerator(QECGenerator):
         t_start += t_moment
         t_moment = self.params.two_qubit_gate_duration
         for q1, q2 in zip(self.qubit_names[2::2], self.qubit_names[1::2]):
-            c.add_gate(circuit.NoisyCPhase(q1, q2,
-                                           t_start + t_moment / 2,
-                                           dephase_var=self.params.two_qubit_depolarization_rate))
+            c.add_gate(circuit.TwoPTMGate(q1, q2,
+                                          noisy_c_phase_ptm(self.params.two_qubit_depolarization_rate),
+                                          t_start + t_moment / 2))
 
         t_start += t_moment
         t_moment = self.params.two_qubit_gate_duration
         for q1, q2 in zip(self.qubit_names[:-1:2], self.qubit_names[1::2]):
-            c.add_gate(circuit.NoisyCPhase(q1, q2,
-                                           t_start + t_moment / 2,
-                                           dephase_var=self.params.two_qubit_depolarization_rate))
+            c.add_gate(circuit.TwoPTMGate(q1, q2,
+                                          noisy_c_phase_ptm(self.params.two_qubit_depolarization_rate),
+                                          t_start + t_moment / 2))
 
         t_start += t_moment
         t_moment = self.params.single_qubit_gate_duration
@@ -227,3 +228,27 @@ class RepCodeGenerator(QECGenerator):
             fig.set_figwidth(10)
             plt.show()
         return c
+
+
+def noisy_c_phase_ptm(p:float):
+
+    I = np.array([[1, 0], [0, 1]])
+    X = np.array([[0, 1], [1, 0]])
+    Y = np.array([[0, -1j], [1j, 0]])
+    Z = np.array([[1, 0], [0, -1]])
+
+    cphase_ptm = ptm.double_kraus_to_ptm(
+        np.array([
+            [1, 0, 0, 0],
+            [0, 1, 0, 0],
+            [0, 0, 1, 0],
+            [0, 0, 0, -1]]
+            )
+        )
+
+    kraus_ops = [np.sqrt(1.0-3*p/4)*I, (np.sqrt(p)/2.0)*X, (np.sqrt(p)/2.0)*Y, (np.sqrt(p)/2.0)*Z]
+    depolarization_ptm = 0
+    for op1,op2 in itertools.product(kraus_ops, kraus_ops):
+        depolarization_ptm += ptm.double_kraus_to_ptm(np.kron(op1, op2))
+
+    return depolarization_ptm@cphase_ptm
