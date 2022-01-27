@@ -1,7 +1,7 @@
 # timing guide for M1 mac:
-# distance 2 - 3.4 msec per iteration * round
-# distance 3 - 7 msec per iteration * round
-# distance 4 - 18 msec per iteration * round
+# distance 2 - 3.4 msec per round
+# distance 3 - 7 msec per round
+# distance 4 - 18 msec per round
 from itertools import cycle
 
 import quantumsim  # https://gitlab.com/quantumsim/quantumsim, branch: stable/v0.2
