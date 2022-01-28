@@ -100,7 +100,7 @@ class SurfaceCodeGenerator(QECGenerator):
         for q in qubits:
             c.add_gate(circuit.RotateX(q,
                                        t_start + t_moment/ 2,
-                                       np.pi,
+                                       -np.pi,
                                        dephasing_angle=self.params.single_qubit_depolarization_rate,
                                        dephasing_axis=self.params.single_qubit_depolarization_rate))
 
@@ -132,7 +132,7 @@ class SurfaceCodeGenerator(QECGenerator):
 
             c.add_gate(circuit.RotateY(q2,
                                        t_start + t_moment2 + 3*t_moment1 / 2,
-                                       np.pi / 2,
+                                       -np.pi / 2,
                                        dephasing_angle=self.params.single_qubit_depolarization_rate,
                                        dephasing_axis=self.params.single_qubit_depolarization_rate))
         return c
