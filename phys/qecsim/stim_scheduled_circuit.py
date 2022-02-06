@@ -1,20 +1,9 @@
 from math import exp
-from typing import Tuple
+from typing import Tuple, Callable
 
 import stim
 
 from qecsim.qec_generator import CircuitParams
-
-inst_with_duration = {'CX', 'H', 'MR'}
-
-
-def verify_standard_tick(circuit: stim.Circuit, k: int) -> None:
-    if circuit[k + 1].name in inst_with_duration and circuit[k + 3].name not in inst_with_duration:
-        pass
-    else:
-        raise ValueError(f'''instructions\n{circuit[k:k + 3]}\n
-        are not of the standard tick format.\n
-        Only a single instruction of {inst_with_duration} is allowed.''')
 
 
 def get_pauli_probs(duration: float, t1: float, t2: float) -> Tuple[float, float, float]:
@@ -30,56 +19,50 @@ def get_pauli_probs(duration: float, t1: float, t2: float) -> Tuple[float, float
             1 - exp(-duration / t1)) / 4
 
 
-def instruction_duration(inst: stim.CircuitInstruction, params: CircuitParams) -> float:
-    if inst.name not in inst_with_duration:
-        ValueError(f'only duration of {inst_with_duration} is known')
-    if inst.name == 'H':
-        return params.single_qubit_gate_duration
-    if inst.name == 'CX':
-        return params.two_qubit_gate_duration
-    if inst.name == 'MR':
-        return params.reset_duration + params.reset_latency + params.meas_duration
-
-
 def to_scheduled_circuit(circuit: stim.Circuit, params: CircuitParams) -> stim.Circuit:
-
     qubit_indices = {inst.targets_copy()[0].value for inst in circuit if
                      isinstance(inst, stim.CircuitInstruction) and inst.name == 'QUBIT_COORDS'}
 
-    def updater(circ: stim.Circuit):
+    inst_with_duration = {'CX', 'H', 'MR'}
+
+    def instruction_duration(inst: stim.CircuitInstruction) -> float:
+        if inst.name not in inst_with_duration:
+            ValueError(f'only duration of {inst_with_duration} is known')
+        if inst.name == 'H':
+            return params.single_qubit_gate_duration
+        if inst.name == 'CX':
+            return params.two_qubit_gate_duration
+        if inst.name == 'MR':
+            return params.reset_duration + params.reset_latency + params.meas_duration
+
+    def add_t1_t2_depolarization(inst: stim.CircuitInstruction, new_circ: stim.Circuit):
+        if inst.name in inst_with_duration:
+            idle_qubits = qubit_indices.difference(t.value for t in inst.targets_copy())
+            new_circ.append_operation(inst)
+            new_circ.append_operation('PAULI_CHANNEL_1',
+                                      list(idle_qubits),
+                                      get_pauli_probs(instruction_duration(inst),
+                                                      params.t1,
+                                                      params.t2
+                                                      )
+                                      )
+        else:
+            new_circ.append_operation(inst)
+
+    def updater(circ: stim.Circuit, inst_handler: Callable):
         new_circ = stim.Circuit()
         for inst in circ:
             inst: stim.CircuitInstruction
             if isinstance(inst, stim.CircuitRepeatBlock):
-                new_circ += updater(inst.body_copy()) * inst.repeat_count
-            elif inst.name in inst_with_duration:
-                # verify_standard_tick(circuit, k)
-                idle_qubits = qubit_indices.difference(t.value for t in inst.targets_copy())
-                new_circ.append_operation(inst)
-                new_circ.append_operation('PAULI_CHANNEL_1',
-                                          list(idle_qubits),
-                                          get_pauli_probs(instruction_duration(inst, params),
-                                                          params.t1,
-                                                          params.t2
-                                                          )
-                                          )
+                new_circ += updater(inst.body_copy(), inst_handler) * inst.repeat_count
             else:
-                new_circ.append_operation(inst)
+                inst_handler(inst, new_circ)
         return new_circ
 
-    return updater(circuit)
+    return updater(circuit, add_t1_t2_depolarization)
 
 
 if __name__ == '__main__':
-    genc = stim.Circuit.generated('surface_code:rotated_memory_z',
-                                  distance=3,
-                                  rounds=4,
-                                  after_clifford_depolarization=0.1,
-                                  before_measure_flip_probability=0.2,
-                                  after_reset_flip_probability=0.3
-                                  )
-
-    print(genc)
     cparams = CircuitParams(t1=15e3,
                             t2=19e3,
                             single_qubit_gate_duration=20,
@@ -89,6 +72,15 @@ if __name__ == '__main__':
                             meas_duration=600,
                             reset_duration=0,
                             reset_latency=40)
+    genc = stim.Circuit.generated('surface_code:rotated_memory_z',
+                                  distance=3,
+                                  rounds=4,
+                                  after_clifford_depolarization=cparams.two_qubit_depolarization_rate,
+                                  before_measure_flip_probability=0.2,
+                                  after_reset_flip_probability=0.3
+                                  )
+
+    print(genc)
     print(to_scheduled_circuit(genc, cparams))
 
 #        print(type(inst), '\t', inst)
