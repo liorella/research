@@ -9,7 +9,7 @@ from qecsim.rep_code_generator import noisy_c_phase_ptm
 def extract_qubits(circ):
     qubits = {}
     for inst in circ:
-        if inst.name == 'QUBIT_COORDS':
+        if isinstance(inst, stim.CircuitInstruction) and inst.name == 'QUBIT_COORDS':
             qubits[inst.targets_copy()[0].value] = tuple(inst.gate_args_copy())
     return qubits
 
