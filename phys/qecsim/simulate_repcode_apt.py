@@ -54,13 +54,13 @@ sdh.log.info("starting simulation")
 for distance in distance_vec:
     sdh.log.info(f"distance = {distance}")
 
-    repc = RepCodeGenerator(distance=distance,
-                            circuit_params=cparams
-                            )
+    generator = RepCodeGenerator(distance=distance,
+                                 circuit_params=cparams
+                                 )
 
     # start cycle
 
-    stabilizer = repc.generate_stabilizer_round(plot=plot)
+    stabilizer = generator.generate_stabilizer_round(plot=plot)
     logical_1_prob_vector = []
     logical_1_sigma_vector = []
     for num_rounds in rounds_vec:
@@ -72,10 +72,10 @@ for distance in distance_vec:
             f_vec = np.zeros(distance)
             meas_previous_vec = np.zeros(distance)
 
-            state = quantumsim.sparsedm.SparseDM(repc.register_names)
+            state = quantumsim.sparsedm.SparseDM(generator.register_names)
             meas_matrix = []
 
-            repc.generate_state_encoder(encoded_state, plot=plot).apply_to(state)
+            generator.generate_state_encoder(encoded_state, plot=plot).apply_to(state)
             if plot and distance == 2:  # currently hardcoded to this distance
                 state.renormalize()
                 qdm = quantumsim_dm_to_qutip_dm(state)
@@ -88,7 +88,7 @@ for distance in distance_vec:
 
             for i in range(num_rounds - 1):
                 stabilizer.apply_to(state)
-                meas_matrix.append(np.array([state.classical[cb] for cb in repc.cbit_names[1::2]]))
+                meas_matrix.append(np.array([state.classical[cb] for cb in generator.cbit_names[1::2]]))
                 f_vec = np.logical_xor(f_vec, meas_previous_vec).astype(int)
                 meas_previous_vec = meas_matrix[-1]
                 sdh.log.debug(f'measured = {meas_matrix[-1]}')
@@ -98,7 +98,7 @@ for distance in distance_vec:
                 for a, f in enumerate(f_vec):
                     if f == 1:
                         to_reset.append(str(2 * a + 1))  # this follows our qubit naming convention
-                repc.generate_active_reset(to_reset, plot=plot).apply_to(state)
+                generator.generate_active_reset(to_reset, plot=plot).apply_to(state)
 
             if plot and distance == 2:  # currently hardcoded to this distance
                 state.renormalize()
@@ -108,21 +108,21 @@ for distance in distance_vec:
                 plt.title(f'data qubits DM after {num_rounds} rounds')
                 plt.show()
 
-            repc.generate_stabilizer_round(final_round=True, plot=plot).apply_to(state)
-            meas_matrix.append([state.classical[cb] for cb in repc.cbit_names[1::2]])
+            generator.generate_stabilizer_round(final_round=True, plot=plot).apply_to(state)
+            meas_matrix.append([state.classical[cb] for cb in generator.cbit_names[1::2]])
             f_vec = np.logical_xor(f_vec, meas_previous_vec).astype(int)
             sdh.log.debug(f'measured = {meas_matrix[-1]}')
             sdh.log.debug(f'f_vec = {f_vec}')
-            data_meas = np.array([state.classical[cb] for cb in repc.cbit_names[::2]])
+            data_meas = np.array([state.classical[cb] for cb in generator.cbit_names[::2]])
 
             # postprocessing
-            data_meas_parity = repc.matching_matrix @ data_meas % 2
+            data_meas_parity = generator.matching_matrix @ data_meas % 2
             # we prepend zeros to account for first round and append perfect measurement step parity
             last_round_meas = np.logical_xor(np.logical_xor(data_meas_parity, f_vec), meas_matrix[-1])
             detection_events = np.r_[meas_matrix, last_round_meas[np.newaxis, :]]
             sdh.log.debug("detection events")
             sdh.log.debug("\n" + repr(detection_events.astype(int).T))
-            pauli_frame = Matching(repc.matching_matrix, repetitions=detection_events.shape[0]).decode(
+            pauli_frame = Matching(generator.matching_matrix, repetitions=detection_events.shape[0]).decode(
                 detection_events.T)
             sdh.log.debug("Pauli frame")
             sdh.log.debug(pauli_frame)

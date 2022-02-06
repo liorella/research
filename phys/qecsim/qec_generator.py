@@ -28,12 +28,8 @@ class QECGenerator(metaclass=ABCMeta):
         self.sampler = circuit.BiasedSampler(readout_error=0, seed=42, alpha=1)
         self.params = circuit_params
         self.distance = distance
-        self.cbits = [
-            circuit.ClassicalBit("m" + str(i)) for i in range(2 * self.distance + 1)
-        ]
-        self.qubits = [
-            circuit.Qubit(str(i), t1=self.params.t1, t2=self.params.t2) for i in range(2 * self.distance + 1)
-        ]
+        self.qubits = []
+        self.cbits = []
 
     @abstractmethod
     def generate_state_encoder(self, state, plot):
