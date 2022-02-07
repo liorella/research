@@ -2,10 +2,11 @@ from itertools import takewhile, dropwhile
 
 import networkx as nx
 import numpy as np
+import pymatching
 import stim
 
 
-def _get_records(circ: stim.Circuit):
+def _get_records(circ: stim.Circuit) -> list:
     m = []
     for inst in circ:
         if isinstance(inst, stim.CircuitRepeatBlock):
@@ -18,15 +19,15 @@ def _get_records(circ: stim.Circuit):
 
 class StimErrorContext:
     """
-    Generates a context for decoding and running error correction sequences on generated stim circuits
+    Generates a context for decoding and running error correction sequences on generated stim QEC circuits
     """
 
-    def __init__(self, circuit: stim.Circuit):
+    def __init__(self, circuit: stim.Circuit, rounds: int):
         self._circuit = circuit
 
         measures = _get_records(self._circuit)
         self._match_indices = []
-
+        self._rounds = rounds
         # this assumes that the reversed structure of the generated program is logical observables and then
         # detectors with parities on the data qubits
 
@@ -48,6 +49,7 @@ class StimErrorContext:
         logical_observables = takewhile(lambda x: x.name == 'OBSERVABLE_INCLUDE', reversed(self._circuit))
         for obs in logical_observables:
             self._logical_observables.append([measures[k] for k in [t.value for t in obs.targets_copy()]])
+        self._build_pymatch_obj()
 
     @property
     def active_ancillas(self) -> np.ndarray:
@@ -73,13 +75,36 @@ class StimErrorContext:
         # todo
         raise NotImplementedError()
 
-    @property
-    def pymatch_obj(self):
-        # todo
-        raise NotImplementedError()
+    def _build_pymatch_obj(self) -> None:
+        match_matrix_unique, unique_indices = np.unique(self.matching_matrix, axis=1, return_index=True)
+        self._pymatch_obj = pymatching.Matching(match_matrix_unique, repetitions=self._rounds + 1)
+        self._unique_match_indices = unique_indices
+
+        # mis = sorted(self._match_indices, key=lambda x: x[-1])
+        # edge_map = [np.flatnonzero([np.any(np.isin(r, [q])) for r in mis]) for q in self.data_qubits]
+        # g = nx.Graph()
+        # for data_qubit, ancillas in zip(self.data_qubits, edge_map):
+        #     assert len(ancillas) < 3
+        #     try:
+        #         if len(ancillas) == 1:
+        #             g.add_edge(ancillas[0], len(self.active_ancillas), fault_ids=data_qubit)
+        #         else:
+        #             g.add_edge(ancillas[0], ancillas[1], fault_ids=data_qubit)
+        #     except ValueError:
+        #         pass
 
     @property
-    def logical_vec(self) -> np.ndarray:
+    def logical_vecs(self) -> np.ndarray:
         vecs = np.zeros((len(self._logical_observables), len(self._data_qubits)), dtype=np.uint8)
-        vecs[self._logical_observables] = 1
+        for k in range(len(self._logical_observables)):
+            vecs[k, np.isin(self._data_qubits, self._logical_observables[k])] = 1
         return vecs
+
+    @property
+    def rounds(self):
+        return self._rounds
+
+    def decode(self, z: np.ndarray) -> np.ndarray:
+        decoded_frame = np.zeros(len(self.data_qubits), dtype=np.uint8)
+        decoded_frame[self._unique_match_indices] = self._pymatch_obj.decode(z)
+        return decoded_frame

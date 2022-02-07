@@ -46,8 +46,8 @@ def generate_scheduled(code_task: str,
                                      distance=distance,
                                      rounds=rounds,
                                      after_clifford_depolarization=params.two_qubit_depolarization_rate,
-                                     before_measure_flip_probability=0.2,
-                                     after_reset_flip_probability=0.3
+                                     before_measure_flip_probability=0,
+                                     after_reset_flip_probability=0
                                      )
     qubit_indices = {inst.targets_copy()[0].value for inst in circuit if
                      isinstance(inst, stim.CircuitInstruction) and inst.name == 'QUBIT_COORDS'}
