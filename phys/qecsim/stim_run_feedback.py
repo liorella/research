@@ -3,7 +3,7 @@ from typing import Iterable, Iterator
 import stim
 
 
-def measure_segments(circuit: stim.Circuit) -> Iterator[stim.Circuit]:
+def to_measure_segments(circuit: stim.Circuit) -> Iterator[stim.Circuit]:
     """
     Create an iterator that iterates over a stim program and returns circuit segments that terminate
     in a measure-like instruction, or the last segment, taking control flow into account.
@@ -19,7 +19,7 @@ def measure_segments(circuit: stim.Circuit) -> Iterator[stim.Circuit]:
     for inst in circuit:
         if isinstance(inst, stim.CircuitRepeatBlock):
             for _ in range(inst.repeat_count):
-                for circ_segment2 in measure_segments(inst.body_copy()):
+                for circ_segment2 in to_measure_segments(inst.body_copy()):
                     circ_segment += circ_segment2
                     if circ_segment[-1].name in ('M', 'MR'):
                         yield circ_segment
@@ -40,7 +40,7 @@ if __name__ == '__main__':
                                   distance=3,
                                   rounds=4,
                                   )
-    gen = measure_segments(genc)
+    gen = to_measure_segments(genc)
     while True:
         try:
             print(next(gen))

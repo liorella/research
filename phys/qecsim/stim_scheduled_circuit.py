@@ -1,9 +1,6 @@
-from itertools import takewhile
 from math import exp
 from typing import Tuple, Callable
-import numpy.typing as npt
 
-import numpy as np
 import stim
 
 from qecsim.qec_generator import CircuitParams
@@ -84,34 +81,6 @@ def to_scheduled_circuit(circuit: stim.Circuit, params: CircuitParams) -> stim.C
     return circuit
 
 
-def get_matching_matrix(circuit: stim.Circuit) -> np.ndarray:
-    def get_records(circ: stim.Circuit):
-        m = []
-        for inst in circ:
-            if isinstance(inst, stim.CircuitRepeatBlock):
-                for _ in range(inst.repeat_count):
-                    m.extend(get_records(inst.body_copy()))
-            elif inst.name in ('M', 'MR'):
-                m.extend(t.value for t in inst.targets_copy())
-        return m
-
-    measures = get_records(circuit)
-    match_indices = []
-    last_detectors = takewhile(lambda x: x.name == 'DETECTOR', reversed(circuit[:-1]))
-    for detector in last_detectors:
-        match_indices.append([measures[k] for k in [t.value for t in detector.targets_copy()]])
-    ancillas = sorted(r[-1] for r in match_indices)
-    data_qubits = []
-    for r in match_indices:
-        data_qubits.extend(r[:-1])
-    data_qubits = sorted(set(data_qubits))
-    match_matrix = np.zeros((len(ancillas), len(data_qubits)), dtype=np.uint8)
-    for r in match_indices:
-        match_matrix[ancillas.index(r[-1]), [data_qubits.index(i) for i in r[:-1]]] = 1
-    return match_matrix
-    # todo: create a matching object that doesn't have duplicates
-
-
 def get_logical_operator(circuit: stim.Circuit):
     # todo
     pass
@@ -134,7 +103,6 @@ if __name__ == '__main__':
                                   before_measure_flip_probability=0.2,
                                   after_reset_flip_probability=0.3
                                   )
-    get_matching_matrix(genc)
     # print(reversed(genc))
     print(to_scheduled_circuit(genc, cparams))
 
