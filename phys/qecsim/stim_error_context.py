@@ -50,16 +50,16 @@ class StimErrorContext:
             self._logical_observables.append([measures[k] for k in [t.value for t in obs.targets_copy()]])
 
     @property
-    def active_ancillas(self):
+    def active_ancillas(self) -> np.ndarray:
         """
         these are the ancillas used for error correction and are needed for decoding
         :return:
         """
-        return self._ancillas
+        return np.array(self._ancillas)
 
     @property
-    def data_qubits(self):
-        return self._data_qubits
+    def data_qubits(self) -> np.ndarray:
+        return np.array(self._data_qubits)
 
     @property
     def matching_matrix(self) -> np.ndarray:
@@ -79,7 +79,7 @@ class StimErrorContext:
         raise NotImplementedError()
 
     @property
-    def logical_vec(self):
+    def logical_vec(self) -> np.ndarray:
         vecs = np.zeros((len(self._logical_observables), len(self._data_qubits)), dtype=np.uint8)
         vecs[self._logical_observables] = 1
         return vecs

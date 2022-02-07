@@ -12,8 +12,9 @@ def do_and_get_measure_results(sim: stim.TableauSimulator,
                                qubits_to_return: np.ndarray
                                ) -> np.ndarray:
     sim.do(segment)
-    record = sim.current_measurement_record()[-segment.num_measurements:]
-    meas_targets = [t.value for t in segment[-1].targets_copy]
+    record = np.array(sim.current_measurement_record()[-segment.num_measurements:])
+    assert segment[-1].name in ('M', 'MR')
+    meas_targets = [t.value for t in segment[-1].targets_copy()]
     assert len(meas_targets) == len(record)
     return record[np.isin(meas_targets, qubits_to_return)]
 
@@ -64,10 +65,11 @@ def experiment_shot(code_task: str, distance: int, num_rounds: int, params: Circ
             results_data = do_and_get_measure_results(sim, segment, surf_context.data_qubits)
             results = surf_context.matching_matrix @ results_data % 2
             f_vec = (f_vec + results) % 2
-            # frame = surf_context.pymatch_obj.decode(f_vec)
-            # corrected_state = (results_data + frame) % 2
-            # logical_state = surf_context.logical_vecs @ corrected_state.T % 2
-    # return logical_state
+            # todo
+            frame = surf_context.pymatch_obj.decode(f_vec)
+            corrected_state = (results_data + frame) % 2
+            logical_state = surf_context.logical_vecs @ corrected_state.T % 2
+    return logical_state
 
 
 if __name__ == '__main__':

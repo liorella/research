@@ -45,7 +45,7 @@ def generate_scheduled(code_task: str,
     circuit = stim.Circuit.generated(code_task,
                                      distance=distance,
                                      rounds=rounds,
-                                     after_clifford_depolarization=cparams.two_qubit_depolarization_rate,
+                                     after_clifford_depolarization=params.two_qubit_depolarization_rate,
                                      before_measure_flip_probability=0.2,
                                      after_reset_flip_probability=0.3
                                      )
