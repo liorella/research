@@ -29,6 +29,8 @@ class StimErrorContext:
 
         # this assumes that the reversed structure of the generated program is logical observables and then
         # detectors with parities on the data qubits
+
+        # get matching matrix
         last_detectors = takewhile(lambda x: x.name == 'DETECTOR',
                                    dropwhile(lambda x: x.name != 'DETECTOR',
                                              reversed(self._circuit)))
@@ -41,8 +43,18 @@ class StimErrorContext:
             data_qubits.extend(r[:-1])
         self._data_qubits = sorted(set(data_qubits))
 
+        # get logical operators
+        self._logical_observables = []
+        logical_observables = takewhile(lambda x: x.name == 'OBSERVABLE_INCLUDE', reversed(self._circuit))
+        for obs in logical_observables:
+            self._logical_observables.append([measures[k] for k in [t.value for t in obs.targets_copy()]])
+
     @property
-    def ancillas(self):
+    def active_ancillas(self):
+        """
+        these are the ancillas used for error correction and are needed for decoding
+        :return:
+        """
         return self._ancillas
 
     @property
@@ -60,3 +72,14 @@ class StimErrorContext:
     def matching_graph_nx(self) -> nx.Graph:
         # todo
         raise NotImplementedError()
+
+    @property
+    def pymatch_obj(self):
+        # todo
+        raise NotImplementedError()
+
+    @property
+    def logical_vec(self):
+        vecs = np.zeros((len(self._logical_observables), len(self._data_qubits)), dtype=np.uint8)
+        vecs[self._logical_observables] = 1
+        return vecs
