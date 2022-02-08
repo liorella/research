@@ -4,7 +4,7 @@ from typing import Tuple, Callable
 import stim
 
 from qecsim.qec_generator import CircuitParams
-from qecsim.stim_error_context import StimErrorContext
+from qecsim.stim.error_context import StimErrorContext
 
 
 def _get_pauli_probs(duration: float, t1: float, t2: float) -> Tuple[float, float, float]:

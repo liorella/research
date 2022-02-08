@@ -2,9 +2,9 @@ import numpy as np
 import stim
 
 from qecsim.qec_generator import CircuitParams
-from qecsim.stim_error_context import StimErrorContext
-from qecsim.stim_scheduled_circuit import generate_scheduled
-from stim_run_feedback import to_measure_segments
+from qecsim.stim.error_context import StimErrorContext
+from qecsim.stim.scheduled_circuit import generate_scheduled
+from qecsim.stim.run_feedback import to_measure_segments
 
 
 def do_and_get_measure_results(sim: stim.TableauSimulator,
