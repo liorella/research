@@ -13,7 +13,8 @@ def do_and_get_measure_results(sim: stim.TableauSimulator,
                                ) -> np.ndarray:
     sim.do(segment)
     record = np.array(sim.current_measurement_record()[-segment.num_measurements:])
-    assert segment[-1].name in ('M', 'MR')
+    assert segment[-1].name in ('M', 'MR', 'MX', 'MRX', 'MRY', 'MRZ', 'MX', 'MY', 'MZ'), \
+        f'bug - segment name is {segment[-1].name}'
     meas_targets = [t.value for t in segment[-1].targets_copy()]
     assert len(meas_targets) == len(record)
     return record[np.isin(meas_targets, qubits_to_return)].astype(np.uint8)
@@ -24,13 +25,16 @@ def gen_feedback_circuit(f_vec: np.ndarray,
     fc = stim.Circuit()
     to_reset = qubits_in_reset[np.nonzero(f_vec)]
     fc.append_operation("X", to_reset)
-    print(fc)
+    # print(fc)
     return fc
 
 
-def experiment_shot(code_task: str, distance: int, num_rounds: int, params: CircuitParams) -> np.ndarray:
+# todo: the experiment shot should handle correctly the reception of these arguments
+def experiment_shot_apt(surf_circ: stim.Circuit,
+                        surf_context: StimErrorContext,
+                        params: CircuitParams) -> np.ndarray:
     """
-    generate a single experimental run and return corrected logical state
+    generate a single experimental run with active parity tracking and return corrected logical state
 
     :param code_task: The code task, as defined by the input to stim.Circuit.generated
     :param distance: The code distance, as defined by the input to stim.Circuit.generated
@@ -40,15 +44,6 @@ def experiment_shot(code_task: str, distance: int, num_rounds: int, params: Circ
     """
     if distance % 2 != 1:
         raise ValueError(f"only odd distance circuits possible. Distance = {distance}")
-
-    surf_circ = generate_scheduled(
-        code_task,
-        distance=distance,
-        rounds=num_rounds,
-        params=params
-    )
-    print(surf_circ)
-    surf_context = StimErrorContext(surf_circ, num_rounds)
 
     surf_circ_iter = to_measure_segments(surf_circ)
 
@@ -61,11 +56,11 @@ def experiment_shot(code_task: str, distance: int, num_rounds: int, params: Circ
     for i, segment in enumerate(surf_circ_iter):
         if i < num_rounds:
 
-            if i == 1:
-                # inject error
-                ec = stim.Circuit()
-                ec.append_operation('X', [5, 15])
-                sim.do(ec)
+            # if i == 1:
+            # inject error
+            #  ec = stim.Circuit()
+            #  ec.append_operation('X', [14])
+            #  sim.do(ec)
 
             sim.do(gen_feedback_circuit(f_vec, surf_context.active_ancillas))
             results = do_and_get_measure_results(sim, segment, surf_context.active_ancillas)
@@ -100,7 +95,24 @@ if __name__ == '__main__':
                             reset_duration=0,
                             reset_latency=40)
 
-    experiment_shot('surface_code:rotated_memory_z',
-                    3,
-                    2,
-                    cparams)
+    # todo: move pymatching object creation outside
+    # task = 'repetition_code:memory'  # looks ok
+    # task = 'surface_code:rotated_memory_x'  # todo: doesn't run
+    task = 'surface_code:rotated_memory_z'  # looks ok
+    # task = 'surface_code:unrotated_memory_z'  # looks ok
+
+    rounds = 20
+    # todo: generate scheduled should also generate the context and return circuit, context
+    circ = generate_scheduled(
+        task,
+        distance=3,
+        rounds=rounds,
+        params=cparams
+    )
+    print(circ)
+    cont = StimErrorContext(circ, rounds)
+
+    experiment_shot_apt(task,
+                        3,
+                        20,
+                        cparams)

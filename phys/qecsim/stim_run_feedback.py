@@ -2,6 +2,8 @@ from typing import Iterable, Iterator
 
 import stim
 
+measure_instructions = ('M', 'MR', 'MX', 'MRX', 'MRY', 'MRZ', 'MX', 'MY', 'MZ')
+
 
 def to_measure_segments(circuit: stim.Circuit) -> Iterator[stim.Circuit]:
     """
@@ -21,10 +23,10 @@ def to_measure_segments(circuit: stim.Circuit) -> Iterator[stim.Circuit]:
             for _ in range(inst.repeat_count):
                 for circ_segment2 in to_measure_segments(inst.body_copy()):
                     circ_segment += circ_segment2
-                    if circ_segment[-1].name in ('M', 'MR'):
+                    if circ_segment[-1].name in measure_instructions:
                         yield circ_segment
                         circ_segment = stim.Circuit()
-        elif inst.name not in ('M', 'MR'):
+        elif inst.name not in measure_instructions:
             circ_segment.append_operation(inst)
         else:
             circ_segment.append_operation(inst)
