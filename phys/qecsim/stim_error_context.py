@@ -1,9 +1,10 @@
 from itertools import takewhile, dropwhile
 
-import networkx as nx
 import numpy as np
 import pymatching
 import stim
+
+from qecsim.qec_generator import CircuitParams
 
 
 def _get_records(circ: stim.Circuit) -> list:
@@ -22,12 +23,15 @@ class StimErrorContext:
     Generates a context for decoding and running error correction sequences on generated stim QEC circuits
     """
 
-    def __init__(self, circuit: stim.Circuit, rounds: int):
+    def __init__(self, circuit: stim.Circuit, code_task: str, distance: int, rounds: int, params: CircuitParams):
         self._circuit = circuit
 
         measures = _get_records(self._circuit)
         self._match_indices = []
+        self._code_task = code_task
+        self._distance = distance
         self._rounds = rounds
+        self._params = params
         # this assumes that the reversed structure of the generated program is logical observables and then
         # detectors with parities on the data qubits
 
@@ -70,28 +74,10 @@ class StimErrorContext:
             match_matrix[self._ancillas.index(r[-1]), [self._data_qubits.index(i) for i in r[:-1]]] = 1
         return match_matrix
 
-    @property
-    def matching_graph_nx(self) -> nx.Graph:
-        # todo
-        raise NotImplementedError()
-
     def _build_pymatch_obj(self) -> None:
         match_matrix_unique, unique_indices = np.unique(self.matching_matrix, axis=1, return_index=True)
         self._pymatch_obj = pymatching.Matching(match_matrix_unique, repetitions=self._rounds + 1)
         self._unique_match_indices = unique_indices
-
-        # mis = sorted(self._match_indices, key=lambda x: x[-1])
-        # edge_map = [np.flatnonzero([np.any(np.isin(r, [q])) for r in mis]) for q in self.data_qubits]
-        # g = nx.Graph()
-        # for data_qubit, ancillas in zip(self.data_qubits, edge_map):
-        #     assert len(ancillas) < 3
-        #     try:
-        #         if len(ancillas) == 1:
-        #             g.add_edge(ancillas[0], len(self.active_ancillas), fault_ids=data_qubit)
-        #         else:
-        #             g.add_edge(ancillas[0], ancillas[1], fault_ids=data_qubit)
-        #     except ValueError:
-        #         pass
 
     @property
     def logical_vecs(self) -> np.ndarray:
@@ -101,7 +87,19 @@ class StimErrorContext:
         return vecs
 
     @property
-    def rounds(self):
+    def distance(self) -> int:
+        return self._distance
+
+    @property
+    def code_task(self) -> str:
+        return self._code_task
+
+    @property
+    def params(self) -> CircuitParams:
+        return self._params
+
+    @property
+    def rounds(self) -> int:
         return self._rounds
 
     def decode(self, z: np.ndarray) -> np.ndarray:

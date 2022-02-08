@@ -4,6 +4,7 @@ from typing import Tuple, Callable
 import stim
 
 from qecsim.qec_generator import CircuitParams
+from qecsim.stim_error_context import StimErrorContext
 
 
 def _get_pauli_probs(duration: float, t1: float, t2: float) -> Tuple[float, float, float]:
@@ -33,14 +34,32 @@ def _updater(circ: stim.Circuit, inst_handler: Callable):
 def generate_scheduled(code_task: str,
                        distance: int,
                        rounds: int,
-                       params: CircuitParams) -> stim.Circuit:
+                       params: CircuitParams,
+                       t1_t2_depolarization=True,
+                       disable_ancilla_reset=True,
+                       separate_gate_errors=True
+                       ) -> tuple[stim.Circuit, StimErrorContext]:
     """
+    Generates a stim circuit with a realistic error model based on gate/measure durations and execution lengths,
+    and a more detailed error model for the gates. Also allows for ancilla measurement without reset for testing
+    alternative reset methods.
 
-    :param code_task:
-    :param distance:
-    :param rounds:
-    :param params:
-    :return:
+    :param code_task: A code task, as given in `stim.Circuit.generated` `code_task` argument
+
+    :param distance: The code distance, supplied to `stim.Circuit.generated`
+
+    :param rounds: Number of correction rounds, supplied to `stim.Circuit.generated`
+
+    :param params: Circuit parameters
+
+    :param separate_gate_errors: If `True`, will use a different error rate for single qubit and 2 qubit gate errors
+
+    :param disable_ancilla_reset: If `True`, will replace all measure and reset instructions with a reset instruction
+
+    :param t1_t2_depolarization: If `True`, will add approximated T1, T2 behavior using the Pauli Twirl approximation
+    (see eq. 10 in https://arxiv.org/abs/1210.5799)
+
+    :return: The generated circuit and an error detection context for performing the decoding
     """
     circuit = stim.Circuit.generated(code_task,
                                      distance=distance,
@@ -98,10 +117,14 @@ def generate_scheduled(code_task: str,
         else:
             new_circ.append_operation(inst)
 
-    circuit = _updater(circuit, add_t1_t2_depolarization)
-    circuit = _updater(circuit, separate_depolarization)
-    circuit = _updater(circuit, replace_mr_with_m)
-    return circuit
+    if t1_t2_depolarization:
+        circuit = _updater(circuit, add_t1_t2_depolarization)
+    if separate_gate_errors:
+        circuit = _updater(circuit, separate_depolarization)
+    if replace_mr_with_m:
+        circuit = _updater(circuit, replace_mr_with_m)
+
+    return circuit, StimErrorContext(circuit, code_task, distance, rounds, params)
 
 
 if __name__ == '__main__':
@@ -114,10 +137,8 @@ if __name__ == '__main__':
                             meas_duration=600,
                             reset_duration=0,
                             reset_latency=40)
-    # print(reversed(genc))
     print(generate_scheduled('surface_code:rotated_memory_z',
                              distance=3,
                              rounds=4,
                              params=cparams))
 
-#        print(type(inst), '\t', inst)
