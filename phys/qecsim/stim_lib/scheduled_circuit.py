@@ -38,7 +38,7 @@ def generate_scheduled(code_task: str,
                        t1_t2_depolarization=True,
                        disable_ancilla_reset=True,
                        separate_gate_errors=True
-                       ) -> tuple[stim.Circuit, StimErrorContext]:
+                       ) -> Tuple[stim.Circuit, StimErrorContext]:
     """
     Generates a stim_lib circuit with a realistic error model based on gate/measure durations and execution lengths,
     and a more detailed error model for the gates. Also allows for ancilla measurement without reset for testing
