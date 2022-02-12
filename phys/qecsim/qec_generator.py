@@ -21,6 +21,7 @@ class CircuitParams:
     meas_duration: float
     reset_duration: float
     reset_latency: float
+    meas_induced_dephasing_enhancement: float = 0.0
 
 
 class QECGenerator(metaclass=ABCMeta):

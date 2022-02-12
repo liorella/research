@@ -5,9 +5,12 @@ import stim
 
 from qec_generator import CircuitParams
 from stim_lib.error_context import StimErrorContext
+from stim_lib.run_feedback import measure_instructions
+
+inst_with_duration = {'CX', 'H', 'MR', 'M', 'R', 'RZ'}
 
 
-def _get_pauli_probs(duration: float, t1: float, t2: float) -> Tuple[float, float, float]:
+def get_pauli_probs(duration: float, t1: float, t2: float) -> Tuple[float, float, float]:
     """
     calculate the Pauli depolarization probabilities
     according to the twirl approximation in eq. 10 in https://arxiv.org/abs/1210.5799
@@ -18,6 +21,21 @@ def _get_pauli_probs(duration: float, t1: float, t2: float) -> Tuple[float, floa
     """
     return (1 - exp(-duration / t1)) / 4, (1 - exp(-duration / t1)) / 4, (1 - exp(-duration / t2)) / 2 - (
             1 - exp(-duration / t1)) / 4
+
+
+def instruction_duration(inst: stim.CircuitInstruction, params: CircuitParams) -> float:
+    if inst.name not in inst_with_duration:
+        ValueError(f'only duration of {inst_with_duration} is known')
+    if inst.name == 'H':
+        return params.single_qubit_gate_duration
+    if inst.name == 'CX':
+        return params.two_qubit_gate_duration
+    if inst.name == 'MR':
+        return params.reset_duration + params.reset_latency + params.meas_duration
+    if inst.name == 'M':
+        return params.meas_duration
+    if inst.name == 'R' or inst.name == 'RZ':
+        return params.reset_latency + params.reset_duration
 
 
 def _updater(circ: stim.Circuit, inst_handler: Callable):
@@ -37,8 +55,8 @@ def generate_scheduled(code_task: str,
                        params: CircuitParams,
                        t1_t2_depolarization=True,
                        disable_ancilla_reset=True,
-                       separate_gate_errors=True
-                       ) -> Tuple[stim.Circuit, StimErrorContext]:
+                       separate_gate_errors=True,
+                       meas_induced_dephasing_enhancement=True) -> Tuple[stim.Circuit, StimErrorContext]:
     """
     Generates a stim_lib circuit with a realistic error model based on gate/measure durations and execution lengths,
     and a more detailed error model for the gates. Also allows for ancilla measurement without reset for testing
@@ -59,6 +77,8 @@ def generate_scheduled(code_task: str,
     :param t1_t2_depolarization: If `True`, will add approximated T1, T2 behavior using the Pauli Twirl approximation
     (see eq. 10 in https://arxiv.org/abs/1210.5799)
 
+    :param meas_induced_dephasing_enhancement: Z error increase to be applied only during measurement on all idle qubits
+
     :return: The generated circuit and an error detection context for performing the decoding
     """
     circuit = stim.Circuit.generated(code_task,
@@ -71,31 +91,29 @@ def generate_scheduled(code_task: str,
     qubit_indices = {inst.targets_copy()[0].value for inst in circuit if
                      isinstance(inst, stim.CircuitInstruction) and inst.name == 'QUBIT_COORDS'}
 
-    inst_with_duration = {'CX', 'H', 'MR', 'M'}
-
-    def instruction_duration(inst: stim.CircuitInstruction) -> float:
-        if inst.name not in inst_with_duration:
-            ValueError(f'only duration of {inst_with_duration} is known')
-        if inst.name == 'H':
-            return params.single_qubit_gate_duration
-        if inst.name == 'CX':
-            return params.two_qubit_gate_duration
-        if inst.name == 'MR':
-            return params.reset_duration + params.reset_latency + params.meas_duration
-        if inst.name == 'M':
-            return params.meas_duration
-
     def add_t1_t2_depolarization(inst: stim.CircuitInstruction, new_circ: stim.Circuit) -> None:
         if inst.name in inst_with_duration:
             idle_qubits = qubit_indices.difference(t.value for t in inst.targets_copy())
             new_circ.append_operation(inst)
             new_circ.append_operation('PAULI_CHANNEL_1',
                                       list(idle_qubits),
-                                      _get_pauli_probs(instruction_duration(inst),
-                                                       params.t1,
-                                                       params.t2
-                                                       )
+                                      get_pauli_probs(instruction_duration(inst, params),
+                                                      params.t1,
+                                                      params.t2
+                                                      )
                                       )
+        else:
+            new_circ.append_operation(inst)
+
+    def add_measurement_induced_dephasing(inst: stim.CircuitInstruction, new_circ: stim.Circuit) -> None:
+        if inst.name in measure_instructions:
+            _, _, pz = get_pauli_probs(instruction_duration(inst, params), params.t1, params.t2)
+            idle_qubits = qubit_indices.difference(t.value for t in inst.targets_copy())
+            new_circ.append_operation(inst.name, inst.targets_copy(), inst.gate_args_copy())
+            new_circ.append_operation('PAULI_CHANNEL_1',
+                                      list(idle_qubits),
+                                      [0, 0,
+                                       params.meas_induced_dephasing_enhancement * pz])
         else:
             new_circ.append_operation(inst)
 
@@ -121,6 +139,8 @@ def generate_scheduled(code_task: str,
         circuit = _updater(circuit, add_t1_t2_depolarization)
     if separate_gate_errors:
         circuit = _updater(circuit, separate_depolarization)
+    if meas_induced_dephasing_enhancement:
+        circuit = _updater(circuit, add_measurement_induced_dephasing)
     if disable_ancilla_reset:
         circuit = _updater(circuit, replace_mr_with_m)
 
@@ -129,16 +149,16 @@ def generate_scheduled(code_task: str,
 
 if __name__ == '__main__':
     cparams = CircuitParams(t1=15e3,
-                            t2=19e3,
+                            t2=9e3,
                             single_qubit_gate_duration=20,
                             two_qubit_gate_duration=100,
                             single_qubit_depolarization_rate=1.1e-3,
                             two_qubit_depolarization_rate=6.6e-3,
                             meas_duration=600,
                             reset_duration=0,
-                            reset_latency=40)
+                            reset_latency=40,
+                            meas_induced_dephasing_enhancement=2)
     print(generate_scheduled('surface_code:rotated_memory_z',
                              distance=3,
                              rounds=4,
                              params=cparams))
-
