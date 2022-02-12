@@ -1,23 +1,9 @@
 import numpy as np
 import stim
-
-from qecsim.qec_generator import CircuitParams
-from qecsim.stim.error_context import StimErrorContext
-from qecsim.stim.scheduled_circuit import generate_scheduled
-from qecsim.stim.run_feedback import to_measure_segments
-
-
-def do_and_get_measure_results(sim: stim.TableauSimulator,
-                               segment: stim.Circuit,
-                               qubits_to_return: np.ndarray
-                               ) -> np.ndarray:
-    sim.do(segment)
-    record = np.array(sim.current_measurement_record()[-segment.num_measurements:])
-    assert segment[-1].name in ('M', 'MR', 'MX', 'MRX', 'MRY', 'MRZ', 'MX', 'MY', 'MZ'), \
-        f'bug - segment name is {segment[-1].name}'
-    meas_targets = [t.value for t in segment[-1].targets_copy()]
-    assert len(meas_targets) == len(record)
-    return record[np.isin(meas_targets, qubits_to_return)].astype(np.uint8)
+from qec_generator import CircuitParams
+from stim_lib.error_context import StimErrorContext
+from stim_lib.scheduled_circuit import generate_scheduled
+from stim_lib.run_feedback import to_measure_segments, do_and_get_measure_results
 
 
 def gen_feedback_circuit(f_vec: np.ndarray,
@@ -59,11 +45,11 @@ def experiment_run_apt(circuit: stim.Circuit,
         for i, segment in enumerate(surf_circ_iter):
             if i < num_rounds:
 
-                if i == 1:
-                    # inject error
-                    ec = stim.Circuit()
-                    ec.append_operation('X', [14])
-                    sim.do(ec)
+                # if i == 1:
+                    ## inject error
+                    # ec = stim.Circuit()
+                    # ec.append_operation('X', [14])
+                    # sim.do(ec)
 
                 sim.do(gen_feedback_circuit(f_vec, context.active_ancillas))
                 results = do_and_get_measure_results(sim, segment, context.active_ancillas)
@@ -77,13 +63,13 @@ def experiment_run_apt(circuit: stim.Circuit,
                 results = (f_vec + data_parity + results_prev) % 2
                 results_record[i, :] = results
                 frame = context.decode(results_record.T)
-                print('frame = ', frame)
-                print('flipped qubits = ', np.array(context.data_qubits)[np.flatnonzero(frame)])
+                # print('frame = ', frame)
+                # print('flipped qubits = ', np.array(context.data_qubits)[np.flatnonzero(frame)])
                 corrected_state = (results_data + frame) % 2
                 logical_state = context.logical_vecs @ corrected_state.T % 2
                 naive_logical = context.logical_vecs @ results_data % 2
-                print(f'logical state = {logical_state} naive logical = {naive_logical}')
-                print(results_record.T)
+                # print(f'logical state = {logical_state} naive logical = {naive_logical}')
+                # print(results_record.T)
                 if logical_state == 0:
                     success += 1
     return success / shots

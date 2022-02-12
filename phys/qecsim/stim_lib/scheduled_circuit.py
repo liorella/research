@@ -3,8 +3,8 @@ from typing import Tuple, Callable
 
 import stim
 
-from qecsim.qec_generator import CircuitParams
-from qecsim.stim.error_context import StimErrorContext
+from qec_generator import CircuitParams
+from stim_lib.error_context import StimErrorContext
 
 
 def _get_pauli_probs(duration: float, t1: float, t2: float) -> Tuple[float, float, float]:
@@ -40,15 +40,15 @@ def generate_scheduled(code_task: str,
                        separate_gate_errors=True
                        ) -> tuple[stim.Circuit, StimErrorContext]:
     """
-    Generates a stim circuit with a realistic error model based on gate/measure durations and execution lengths,
+    Generates a stim_lib circuit with a realistic error model based on gate/measure durations and execution lengths,
     and a more detailed error model for the gates. Also allows for ancilla measurement without reset for testing
     alternative reset methods.
 
-    :param code_task: A code task, as given in `stim.Circuit.generated` `code_task` argument
+    :param code_task: A code task, as given in `stim_lib.Circuit.generated` `code_task` argument
 
-    :param distance: The code distance, supplied to `stim.Circuit.generated`
+    :param distance: The code distance, supplied to `stim_lib.Circuit.generated`
 
-    :param rounds: Number of correction rounds, supplied to `stim.Circuit.generated`
+    :param rounds: Number of correction rounds, supplied to `stim_lib.Circuit.generated`
 
     :param params: Circuit parameters
 
@@ -121,7 +121,7 @@ def generate_scheduled(code_task: str,
         circuit = _updater(circuit, add_t1_t2_depolarization)
     if separate_gate_errors:
         circuit = _updater(circuit, separate_depolarization)
-    if replace_mr_with_m:
+    if disable_ancilla_reset:
         circuit = _updater(circuit, replace_mr_with_m)
 
     return circuit, StimErrorContext(circuit, code_task, distance, rounds, params)

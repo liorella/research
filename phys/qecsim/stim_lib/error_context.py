@@ -4,7 +4,7 @@ import numpy as np
 import pymatching
 import stim
 
-from qecsim.qec_generator import CircuitParams
+from qec_generator import CircuitParams
 
 
 def _get_records(circ: stim.Circuit) -> list:
@@ -20,7 +20,7 @@ def _get_records(circ: stim.Circuit) -> list:
 
 class StimErrorContext:
     """
-    Generates a context for decoding and running error correction sequences on generated stim QEC circuits
+    Generates a context for decoding and running error correction sequences on generated stim_lib QEC circuits
     """
 
     def __init__(self, circuit: stim.Circuit, code_task: str, distance: int, rounds: int, params: CircuitParams):

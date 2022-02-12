@@ -1,5 +1,6 @@
-from typing import Iterable, Iterator
+from typing import Iterator
 
+import numpy as np
 import stim
 
 measure_instructions = ('M', 'MR', 'MX', 'MRX', 'MRY', 'MRZ', 'MX', 'MY', 'MZ')
@@ -7,12 +8,11 @@ measure_instructions = ('M', 'MR', 'MX', 'MRX', 'MRY', 'MRZ', 'MX', 'MY', 'MZ')
 
 def to_measure_segments(circuit: stim.Circuit) -> Iterator[stim.Circuit]:
     """
-    Create an iterator that iterates over a stim program and returns circuit segments that terminate
+    Create an iterator that iterates over a stim_lib program and returns circuit segments that terminate
     in a measure-like instruction, or the last segment, taking control flow into account.
 
     This is useful when we want to feedback on measurement results.
 
-    todo: add example
     :param circuit: The circuit to transform
     :return: None
     """
@@ -34,6 +34,18 @@ def to_measure_segments(circuit: stim.Circuit) -> Iterator[stim.Circuit]:
             circ_segment = stim.Circuit()
     if len(circ_segment) > 0:
         yield circ_segment
+
+
+def do_and_get_measure_results(sim: stim.TableauSimulator,
+                               segment: stim.Circuit,
+                               qubits_to_return: np.ndarray
+                               ) -> np.ndarray:
+    sim.do(segment)
+    record = np.array(sim.current_measurement_record()[-segment.num_measurements:])
+    assert segment[-1].name in measure_instructions, f'bug - segment name is {segment[-1].name}'
+    meas_targets = [t.value for t in segment[-1].targets_copy()]
+    assert len(meas_targets) == len(record)
+    return record[np.isin(meas_targets, qubits_to_return)].astype(np.uint8)
 
 
 if __name__ == '__main__':
