@@ -26,15 +26,15 @@ def get_pauli_probs(duration: float, t1: float, t2: float) -> Tuple[float, float
 
 def get_dephasing_probs(duration: float, t2: float) -> Tuple [float, float, float]:
     # p_I, p_X, p_Y, p_Z
-    #0.5*(1 + exp(-duration/(2*t2))), 0.0, 0.0, 0.5*(1 - exp(-duration/(2*t2)))
-    return 0, 0, 0.5*(1 - exp(-duration/(2*t2)))
+    #0.5*(2 - exp(-duration/(2*t2))), 0.0, 0.0, 0.5*(exp(-duration/(2*t2)))
+    return 0, 0, 0.5*exp(-duration/(2*t2))
 
 def get_amplitude_damping_probs(duration: float, t1: float) -> Tuple [float, float, float]:
     """
     Calculates the quasi probabilities of I, Z, RZ channels for amplitude damping
     see Example 2 in https://arxiv.org/pdf/1703.00111.pdf 
     """
-    gamma = exp(-duration/t1)
+    gamma = 1 - exp(-duration/t1)
     p_I = ((1 - gamma) + sqrt(1 - gamma))/2.0
     p_Z = ((1 - gamma) - sqrt(1 - gamma))/2.0
     p_RZ = gamma
@@ -130,7 +130,7 @@ def generate_scheduled(code_task: str,
                 channels = ["I", "Z", "RZ"]
                 probs = np.array([p_I, abs(p_Z), p_Rz])
                 probs /=  sum(probs)
-                print(probs)
+
                 for qb in list(idle_qubits):
                     num = np.random.choice(3, 1, p=probs)[0]
                     if num!=0:
