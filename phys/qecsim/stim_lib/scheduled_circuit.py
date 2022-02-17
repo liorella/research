@@ -1,5 +1,6 @@
-from math import exp
+from math import exp, sqrt
 from typing import Tuple, Callable
+import numpy as np
 
 import stim
 
@@ -23,6 +24,22 @@ def get_pauli_probs(duration: float, t1: float, t2: float) -> Tuple[float, float
             1 - exp(-duration / t1)) / 4
 
 
+def get_dephasing_probs(duration: float, t2: float) -> Tuple [float, float, float]:
+    # p_I, p_X, p_Y, p_Z
+    #0.5*(1 + exp(-duration/(2*t2))), 0.0, 0.0, 0.5*(1 - exp(-duration/(2*t2)))
+    return 0, 0, 0.5*(1 - exp(-duration/(2*t2)))
+
+def get_amplitude_damping_probs(duration: float, t1: float) -> Tuple [float, float, float]:
+    """
+    Calculates the quasi probabilities of I, Z, RZ channels for amplitude damping
+    see Example 2 in https://arxiv.org/pdf/1703.00111.pdf 
+    """
+    gamma = exp(-duration/t1)
+    p_I = ((1 - gamma) + sqrt(1 - gamma))/2.0
+    p_Z = ((1 - gamma) - sqrt(1 - gamma))/2.0
+    p_RZ = gamma
+    return p_I, p_Z, p_RZ
+
 def instruction_duration(inst: stim.CircuitInstruction, params: CircuitParams) -> float:
     if inst.name not in inst_with_duration:
         ValueError(f'only duration of {inst_with_duration} is known')
@@ -38,15 +55,17 @@ def instruction_duration(inst: stim.CircuitInstruction, params: CircuitParams) -
         return params.reset_latency + params.reset_duration
 
 
-def _updater(circ: stim.Circuit, inst_handler: Callable):
+def _updater(circ: stim.Circuit, inst_handler: Callable, weight=1.0):
+    w = weight
     new_circ = stim.Circuit()
     for inst in circ:
         inst: stim.CircuitInstruction
         if isinstance(inst, stim.CircuitRepeatBlock):
-            new_circ += _updater(inst.body_copy(), inst_handler) * inst.repeat_count
+            for _ in range(inst.repeat_count):
+                new_circ += _updater(inst.body_copy(), inst_handler, w)[0]
         else:
-            inst_handler(inst, new_circ)
-    return new_circ
+            w = inst_handler(inst, new_circ, w)
+    return new_circ, w
 
 
 def generate_scheduled(code_task: str,
@@ -56,7 +75,8 @@ def generate_scheduled(code_task: str,
                        t1_t2_depolarization=True,
                        disable_ancilla_reset=True,
                        separate_gate_errors=True,
-                       meas_induced_dephasing_enhancement=True) -> Tuple[stim.Circuit, StimErrorContext]:
+                       meas_induced_dephasing_enhancement=True,
+                       monte_carlo_trajectory=False) -> Tuple[stim.Circuit, StimErrorContext, float]:
     """
     Generates a stim_lib circuit with a realistic error model based on gate/measure durations and execution lengths,
     and a more detailed error model for the gates. Also allows for ancilla measurement without reset for testing
@@ -90,22 +110,51 @@ def generate_scheduled(code_task: str,
                                      )
     qubit_indices = {inst.targets_copy()[0].value for inst in circuit if
                      isinstance(inst, stim.CircuitInstruction) and inst.name == 'QUBIT_COORDS'}
-
-    def add_t1_t2_depolarization(inst: stim.CircuitInstruction, new_circ: stim.Circuit) -> None:
+    weight = 1.0
+    def add_t1_t2_depolarization(inst: stim.CircuitInstruction, 
+                                 new_circ: stim.Circuit,
+                                 weight: float) -> None:
+        w = weight
         if inst.name in inst_with_duration:
             idle_qubits = qubit_indices.difference(t.value for t in inst.targets_copy())
             new_circ.append_operation(inst)
-            new_circ.append_operation('PAULI_CHANNEL_1',
-                                      list(idle_qubits),
-                                      get_pauli_probs(instruction_duration(inst, params),
-                                                      params.t1,
-                                                      params.t2
-                                                      )
-                                      )
+            if (monte_carlo_trajectory):
+                new_circ.append_operation('PAULI_CHANNEL_1',
+                                          list(idle_qubits),
+                                          get_dephasing_probs(instruction_duration(inst, params),
+                                                              params.t2
+                                            )
+                                          )
+                p_I, p_Z, p_Rz = get_amplitude_damping_probs(instruction_duration(inst, params),
+                                                              params.t1)
+                channels = ["I", "Z", "RZ"]
+                probs = np.array([p_I, abs(p_Z), p_Rz])
+                probs /=  sum(probs)
+                print(probs)
+                for qb in list(idle_qubits):
+                    num = np.random.choice(3, 1, p=probs)[0]
+                    if num!=0:
+                        new_circ.append_operation(channels[num], [qb])
+                    if num==1:
+                        w *= -probs[num]
+                    else:
+                        w *= probs[num]
+                
+            else:
+                new_circ.append_operation('PAULI_CHANNEL_1',
+                                          list(idle_qubits),
+                                          get_pauli_probs(instruction_duration(inst, params),
+                                                          params.t1,
+                                                          params.t2
+                                                          )
+                                          )
         else:
             new_circ.append_operation(inst)
+        return w
 
-    def add_measurement_induced_dephasing(inst: stim.CircuitInstruction, new_circ: stim.Circuit) -> None:
+    def add_measurement_induced_dephasing(inst: stim.CircuitInstruction, 
+                                          new_circ: stim.Circuit,
+                                          weight: float) -> None:
         if inst.name in measure_instructions:
             _, _, pz = get_pauli_probs(instruction_duration(inst, params), params.t1, params.t2)
             idle_qubits = qubit_indices.difference(t.value for t in inst.targets_copy())
@@ -116,14 +165,20 @@ def generate_scheduled(code_task: str,
                                        params.meas_induced_dephasing_enhancement * pz])
         else:
             new_circ.append_operation(inst)
+        return weight
 
-    def replace_mr_with_m(inst: stim.CircuitInstruction, new_circ: stim.Circuit) -> None:
+    def replace_mr_with_m(inst: stim.CircuitInstruction, 
+                          new_circ: stim.Circuit, 
+                          weight:float) -> None:
         if inst.name == 'MR':
             new_circ.append_operation('M', inst.targets_copy(), inst.gate_args_copy())
         else:
             new_circ.append_operation(inst)
+        return weight
 
-    def separate_depolarization(inst: stim.CircuitInstruction, new_circ: stim.Circuit) -> None:
+    def separate_depolarization(inst: stim.CircuitInstruction, 
+                                new_circ: stim.Circuit,
+                                weight: float) -> None:
         if inst.name == 'DEPOLARIZE1':
             new_circ.append_operation('DEPOLARIZE1',
                                       inst.targets_copy(),
@@ -134,24 +189,25 @@ def generate_scheduled(code_task: str,
                                       params.two_qubit_depolarization_rate)
         else:
             new_circ.append_operation(inst)
-
+        return weight
+    
     if t1_t2_depolarization:
-        circuit = _updater(circuit, add_t1_t2_depolarization)
+        circuit, weight = _updater(circuit, add_t1_t2_depolarization, weight)
     if separate_gate_errors:
-        circuit = _updater(circuit, separate_depolarization)
+        circuit, weight = _updater(circuit, separate_depolarization, weight)
     if meas_induced_dephasing_enhancement:
-        circuit = _updater(circuit, add_measurement_induced_dephasing)
+        circuit, weight = _updater(circuit, add_measurement_induced_dephasing, weight)
     if disable_ancilla_reset:
-        circuit = _updater(circuit, replace_mr_with_m)
+        circuit, weight = _updater(circuit, replace_mr_with_m, weight)
 
-    return circuit, StimErrorContext(circuit, code_task, distance, rounds, params)
+    return circuit, StimErrorContext(circuit, code_task, distance, rounds, params), weight
 
 
 if __name__ == '__main__':
     cparams = CircuitParams(t1=15e3,
-                            t2=9e3,
+                            t2=26e3,
                             single_qubit_gate_duration=20,
-                            two_qubit_gate_duration=100,
+                            two_qubit_gate_duration=40,
                             single_qubit_depolarization_rate=1.1e-3,
                             two_qubit_depolarization_rate=6.6e-3,
                             meas_duration=600,
@@ -161,4 +217,5 @@ if __name__ == '__main__':
     print(generate_scheduled('surface_code:rotated_memory_z',
                              distance=3,
                              rounds=4,
-                             params=cparams))
+                             params=cparams,
+                             monte_carlo_trajectory=True))
