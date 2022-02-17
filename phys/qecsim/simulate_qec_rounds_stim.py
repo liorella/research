@@ -122,7 +122,8 @@ def monte_carlo_experiment_run(code_task: str,
                 code_task=code_task,
                 distance=distance,
                 rounds=num_rounds,
-                params=params
+                params=params,
+                monte_carlo_trajectory=True
             )
 
         surf_circ_iter = to_measure_segments(circuit)
