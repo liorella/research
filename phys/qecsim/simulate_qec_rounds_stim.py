@@ -187,27 +187,27 @@ def monte_carlo_experiment_run(code_task: str,
 
 
 if __name__ == '__main__':
-    cparams = CircuitParams(t1=15e3,
-                            t2=10e3,
+    cparams = CircuitParams(t1=np.inf,
+                            t2=np.inf,
                             single_qubit_gate_duration=20,
                             two_qubit_gate_duration=100,
-                            single_qubit_depolarization_rate=0.01,
-                            two_qubit_depolarization_rate=0.01,
+                            single_qubit_depolarization_rate=0.0,
+                            two_qubit_depolarization_rate=0.0,
                             meas_duration=600,
                             reset_duration=300,
                             reset_latency=40)
 
-    # task = 'repetition_code:memory'  # looks ok
+    task = 'repetition_code:memory'  # looks ok
     # task = 'surface_code:rotated_memory_x'  # todo: doesn't run
-    task = 'surface_code:rotated_memory_z'  # looks ok
+    # task = 'surface_code:rotated_memory_z'  # looks ok
     # task = 'surface_code:unrotated_memory_z'  # looks ok
 
     circ, cont = generate_scheduled(
         task,
-        distance=3,
+        distance=7,
         rounds=20,
         params=cparams
     )
     print(circ)
 
-    print('success = ', experiment_run(circ, cont, shots=1, reset_strategy='APT'))
+    print('success = ', experiment_run(circ, cont, shots=1, reset_strategy='AR'))
