@@ -16,3 +16,5 @@ gatelevel/gatelevel_qiskit/examples/.ipynb_checkpoints/
 phys/data/
 
 phys/qecsim/data/
+
+*.svg
