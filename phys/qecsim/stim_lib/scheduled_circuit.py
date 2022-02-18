@@ -26,8 +26,9 @@ def get_pauli_probs(duration: float, t1: float, t2: float) -> Tuple[float, float
 
 def get_dephasing_probs(duration: float, t2: float) -> Tuple [float, float, float]:
     # p_I, p_X, p_Y, p_Z
-    #0.5*(2 - exp(-duration/(2*t2))), 0.0, 0.0, 0.5*(exp(-duration/(2*t2)))
-    return 0, 0, 0.5*exp(-duration/(2*t2))
+    lbda = 1 - np.exp(-2*duration/t2)
+    alpha = (1 + np.sqrt(1 - lbda))/2
+    return 0, 0, 1 - alpha
 
 def get_amplitude_damping_probs(duration: float, t1: float) -> Tuple [float, float, float]:
     """
