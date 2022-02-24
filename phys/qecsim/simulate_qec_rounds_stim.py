@@ -45,8 +45,8 @@ def experiment_run(circuit: stim.Circuit,
 
     distance = context.distance
     num_rounds = context.rounds
-    if distance % 2 != 1:
-        raise ValueError(f"only odd distance circuits possible. Distance = {distance}")
+    #if distance % 2 != 1:
+    #    raise ValueError(f"only odd distance circuits possible. Distance = {distance}")
 
     success = 0
     for shot in range(shots):
