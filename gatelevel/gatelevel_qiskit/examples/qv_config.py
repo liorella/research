@@ -1,4 +1,4 @@
-num_qubits = 5
+num_qubits = 2
 
 assert num_qubits <= 5, "hardcoded to have only 3 controllers"
 

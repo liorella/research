@@ -4,15 +4,17 @@ import numpy as np
 from qm import SimulationConfig
 from qm.QuantumMachinesManager import QuantumMachinesManager
 from qm.qua import *
+from qm.simulate.credentials import create_credentials
 
 from gatelevel_qiskit.clops_maker import QVMaker
+from gatelevel_qiskit.examples.opx_connectivity import create_fully_connected
 from gatelevel_qiskit.examples.qv_config import num_qubits
 
 shots = 100
 K = 10
-M = 100
+M = 10
 I_thresh = [0 for _ in range(num_qubits)]
-num_templates_per_prog = 5
+num_templates_per_prog = 1
 
 
 def assign_random_parameters(params):
@@ -96,12 +98,17 @@ for p_i in range(M // num_templates_per_prog):
         save(finished, 'finished')
     progs.append(prog)
 
-qmm = QuantumMachinesManager('172.16.2.149')
+qmm = QuantumMachinesManager('192.168.1.119')
 
 # qmm = QuantumMachinesManager(host='oded-36a11cb2.dev.quantum-machines.co', port=443, credentials=create_credentials())
-simulate = False
+simulate = True
 if simulate:
-    job = qmm.simulate(qvm.config, prog, SimulationConfig(1200), flags=['auto-element-thread'])
+    job = qmm.simulate(qvm.config,
+                       prog,
+                       SimulationConfig(1200,
+                                        controller_connections=create_fully_connected(
+                                            controllers=['con1', 'con2', 'con3'])),
+                       flags=['auto-element-thread'])
     job.result_handles.wait_for_all_values()
 else:
     qm = qmm.open_qm(qvm.config)

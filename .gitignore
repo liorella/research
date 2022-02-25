@@ -12,3 +12,10 @@ phys/.ipynb_checkpoints/
 gatelevel/gatelevel_qiskit/examples/.ipynb_checkpoints/
 
 .ipynb_checkpoints/
+
+phys/data/
+
+phys/qecsim/data/
+
+*.svg
+
