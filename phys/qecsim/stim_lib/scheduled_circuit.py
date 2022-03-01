@@ -130,16 +130,18 @@ def generate_scheduled(code_task: str,
                                                               params.t1)
                 channels = ["I", "Z", "RZ"]
                 probs = np.array([p_I, abs(p_Z), p_Rz])
-                probs /=  sum(probs)
-
+                _w = sum(probs)
+                probs /=  _w
+                ## see Algorithm 1 in https://arxiv.org/pdf/1703.00111.pdf
+                ## for the weights used here
                 for qb in list(idle_qubits):
                     num = np.random.choice(3, 1, p=probs)[0]
                     if num!=0:
                         new_circ.append_operation(channels[num], [qb])
                     if num==1:
-                        w *= -probs[num]
+                        w *= -_w
                     else:
-                        w *= probs[num]
+                        w *= _w
                 
             else:
                 new_circ.append_operation('PAULI_CHANNEL_1',
