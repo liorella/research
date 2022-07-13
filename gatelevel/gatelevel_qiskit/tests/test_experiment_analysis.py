@@ -7,6 +7,7 @@ from qiskit.quantum_info import DensityMatrix
 from qiskit.result import Result
 from qiskit.result.models import ExperimentResult, ExperimentResultData
 from qiskit_experiments.framework import ExperimentData
+from qiskit_experiments.library import StateTomography
 from qiskit_experiments.library.tomography import StateTomographyAnalysis
 from qiskit_experiments.library.tomography.basis import PauliMeasurementBasis
 from qiskit_experiments.library.tomography.tomography_experiment import TomographyExperiment
@@ -18,8 +19,6 @@ from gatelevel_qiskit.experiment_analysis import QuaJob, outcome_da_to_qiskit_re
 def ds_1q_tomo():
     num_q = 1
     n_avg = 100
-    randint = np.random.randint(low=0, high=n_avg, size=[2 ** num_q - 1, 3])
-    randint = np.vstack((randint, n_avg - randint))
     return xr.Dataset({
         'counts': xr.DataArray(np.array([[100, 0, 0], [0, 0, 0]]),
                                dims=['outcome', 'measbase'],
@@ -63,14 +62,13 @@ def test_create_qiskit_experiment_data(ds_1q_tomo, default_header):
 
 
 def test_analyze_tomo_1q(ds_1q_tomo, default_header):
-    tomo_experiment = TomographyExperiment(QuantumCircuit(1), measurement_qubits=[1],
-                                           measurement_basis=PauliMeasurementBasis(), qubits=range(5))
+    tomo_experiment = StateTomography(QuantumCircuit(1), measurement_qubits=[1],
+                                      measurement_basis=PauliMeasurementBasis(), qubits=range(5))
     expdat = ExperimentData(tomo_experiment)
     expdat.add_jobs([QuaJob(outcome_da_to_qiskit_result(ds_1q_tomo.counts, default_header))])
     expdat = StateTomographyAnalysis().run(expdat)
     print(expdat)
     print(expdat.analysis_results())
-    assert len(expdat.analysis_results()) == 1
     assert expdat.analysis_results()[0].value == DensityMatrix([[1. + 0.j, 0. + 0.j],
                                                                 [0. + 0.j, 0. + 0.j]],
                                                                dims=(2,))
