@@ -25,10 +25,10 @@ class CircuitParams:
 
 
 class QECGenerator(metaclass=ABCMeta):
-    def __init__(self, distance: int, circuit_params: CircuitParams):
+    def __init__(self, num_stabilizer: int, circuit_params: CircuitParams):
         self.sampler = circuit.BiasedSampler(readout_error=0, seed=42, alpha=1)
         self.params = circuit_params
-        self.distance = distance
+        self.num_stabilizer = num_stabilizer
         self.qubits = []
         self.cbits = []
 
@@ -96,7 +96,7 @@ class QECGenerator(metaclass=ABCMeta):
 
     @property
     def matching_matrix(self):
-        return toeplitz([1] + [0] * (self.distance - 1), [1, 1] + [0] * (self.distance - 1))
+        return toeplitz([1] + [0] * (self.num_stabilizer - 1), [1, 1] + [0] * (self.num_stabilizer - 1))
 
     @property
     def qubit_names(self):
