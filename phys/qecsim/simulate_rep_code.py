@@ -29,7 +29,7 @@ if __name__ == "__main__":
                             reset_duration=250,
                             reset_latency=200)
 
-    repc = RepCodeGenerator(distance=distance,
+    repc = RepCodeGenerator(num_stabilizer=anc_qubits,
                             circuit_params=cparams
                             )
 

@@ -12,7 +12,6 @@ import matplotlib.pyplot as plt
 import logging
 
 from tqdm import tqdm
-from vlogging import VisualRecord
 
 from qecsim.lib import quantumsim_dm_to_qutip_dm, SimDataHandler
 from qecsim.rep_code_generator import RepCodeGenerator
@@ -53,8 +52,8 @@ success_sigma_matrix = []
 sdh.log.info("starting simulation")
 for distance in distance_vec:
     sdh.log.info(f"distance = {distance}")
-
-    repc = RepCodeGenerator(distance=distance,
+    num_stabilizer = distance-1
+    repc = RepCodeGenerator(num_stabilizer=num_stabilizer,
                             circuit_params=cparams
                             )
 
@@ -105,7 +104,7 @@ for distance in distance_vec:
             # postprocessing
             data_meas_parity = repc.matching_matrix @ data_meas % 2
             # we prepend zeros to account for first round and append perfect measurement step parity
-            syndromes = np.vstack([np.zeros(distance), syndromes, data_meas_parity])
+            syndromes = np.vstack([np.zeros(num_stabilizer), syndromes, data_meas_parity])
             detection_events = np.logical_xor(syndromes[1:], syndromes[:-1])
             sdh.log.debug("detection events")
             sdh.log.debug("\n" + repr(detection_events.astype(int).T))

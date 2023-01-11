@@ -27,10 +27,10 @@ def to_str(lst):
 
 
 class SurfaceCodeGenerator(QECGenerator):
-    def __init__(self, distance: int, circuit_params: CircuitParams):
-        if distance != 3:
+    def __init__(self, num_stabilizer: int, circuit_params: CircuitParams):
+        if num_stabilizer != 3:
             raise NotImplementedError("currently only d=3 is supported")
-        super().__init__(distance, circuit_params)
+        super().__init__(num_stabilizer, circuit_params)
         self._stim_circ = stim.Circuit.generated(
             "surface_code:rotated_memory_z",
             rounds=1,

@@ -22,7 +22,7 @@ from qecsim.qec_generator import CircuitParams
 ########
 
 sdh = SimDataHandler()
-plot = False
+plot = True
 sdh.log.setLevel(logging.INFO)
 # distance = 4
 encoded_state = '1'
@@ -36,8 +36,8 @@ else:
 
 # num_rounds = 20
 num_iterations = int(1e1)
-distance_vec = np.arange(2, 4, 1)
-rounds_vec = np.arange(1, 10, 2)
+distance_vec = np.arange(3, 5, 1) #this was the number of stabilizers in the original code
+rounds_vec = np.arange(1, 9, 2)
 
 cparams = CircuitParams(t1=15e3,
                         t2=19e3,
@@ -48,17 +48,20 @@ cparams = CircuitParams(t1=15e3,
                         meas_duration=600,
                         reset_duration=0,
                         reset_latency=40)
-logical_1_prob_matrix = []
-success_sigma_matrix = []
+logical_1_prob_matrix = [] #will record the logical 1 estimated probabilities (evaluated from num_iterations experiments) for all distances, and rounds
+success_sigma_matrix = [] #will record the logical 1 standard deviation for all distances, and rounds, extracted from the prob. Var(x)=n*p*(1-p)
 sdh.log.info("starting simulation")
+distance=distance_vec[0]
+num_rounds=rounds_vec[1]
+##
 for distance in distance_vec:
+    num_stabilizer = distance - 1
     sdh.log.info(f"distance = {distance}")
-
-    generator = RepCodeGenerator(distance=distance,
+    generator = RepCodeGenerator(num_stabilizer=num_stabilizer,
                                  circuit_params=cparams
                                  )
 
-    # start cycle
+    # start cycle  
 
     stabilizer = generator.generate_stabilizer_round(plot=plot)
     logical_1_prob_vector = []
@@ -69,24 +72,25 @@ for distance in distance_vec:
         log_state_outcome_vector = []
         for n in tqdm(range(num_iterations)):
 
-            f_vec = np.zeros(distance)
-            meas_previous_vec = np.zeros(distance)
+            f_vec = np.zeros(num_stabilizer)
+            meas_previous_vec = np.zeros(num_stabilizer)
 
             state = quantumsim.sparsedm.SparseDM(generator.register_names)
             meas_matrix = []
 
             generator.generate_state_encoder(encoded_state, plot=plot).apply_to(state)
-            if plot and distance == 2:  # currently hardcoded to this distance
-                state.renormalize()
-                qdm = quantumsim_dm_to_qutip_dm(state)
-                data_qdm = qdm.ptrace(range(2, 5))
-                qutip.matrix_histogram_complex(data_qdm)
-                plt.title('data qubits DM')
-                plt.show()
+            # if plot and anc_qubits == 2:  # currently hardcoded to this distance
+            #     state.renormalize()
+            #     qdm = quantumsim_dm_to_qutip_dm(state)
+            #     data_qdm = qdm.ptrace(range(2, 5))
+            #     qutip.matrix_histogram_complex(data_qdm)
+            #     plt.title('data qubits DM')
+            #     plt.show()
             # for i in range(1, 4, 2):
             #     repc.generate_bitflip_error(str(i), plot=plot).apply_to(state)  # for testing purposes
 
             for i in range(num_rounds - 1):
+                print(i)
                 stabilizer.apply_to(state)
                 meas_matrix.append(np.array([state.classical[cb] for cb in generator.cbit_names[1::2]]))
                 f_vec = np.logical_xor(f_vec, meas_previous_vec).astype(int)
@@ -99,14 +103,14 @@ for distance in distance_vec:
                     if f == 1:
                         to_reset.append(str(2 * a + 1))  # this follows our qubit naming convention
                 generator.generate_active_reset(to_reset, plot=plot).apply_to(state)
-
-            if plot and distance == 2:  # currently hardcoded to this distance
-                state.renormalize()
-                qdm = quantumsim_dm_to_qutip_dm(state)
-                data_qdm = qdm.ptrace(range(2, 5))
-                qutip.matrix_histogram_complex(data_qdm)
-                plt.title(f'data qubits DM after {num_rounds} rounds')
-                plt.show()
+            #
+            # if plot and anc_qubits == 2:  # currently hardcoded to this distance
+            #     state.renormalize()
+            #     qdm = quantumsim_dm_to_qutip_dm(state)
+            #     data_qdm = qdm.ptrace(range(2, 5))
+            #     qutip.matrix_histogram_complex(data_qdm)
+            #     plt.title(f'data qubits DM after {num_rounds} rounds')
+            #     plt.show()
 
             generator.generate_stabilizer_round(final_round=True, plot=plot).apply_to(state)
             meas_matrix.append([state.classical[cb] for cb in generator.cbit_names[1::2]])
@@ -123,7 +127,7 @@ for distance in distance_vec:
             sdh.log.debug("detection events")
             sdh.log.debug("\n" + repr(detection_events.astype(int).T))
             pauli_frame = Matching(generator.matching_matrix, repetitions=detection_events.shape[0]).decode(
-                detection_events.T)
+                detection_events.T) #matching between the syndromes and the logical state
             sdh.log.debug("Pauli frame")
             sdh.log.debug(pauli_frame)
             sdh.log.debug("data qubits meas result")

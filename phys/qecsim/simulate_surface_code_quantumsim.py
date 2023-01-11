@@ -48,7 +48,7 @@ sdh.log.info("starting simulation")
 for distance in distance_vec:
     sdh.log.info(f"distance = {distance}")
 
-    repc = RepCodeGenerator(distance=distance,
+    repc = RepCodeGenerator(num_stabilizer=anc_qubits,
                             circuit_params=cparams
                             )
 

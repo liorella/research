@@ -9,13 +9,13 @@ from qecsim.qec_generator import QECGenerator, CircuitParams
 
 
 class RepCodeGenerator(QECGenerator):
-    def __init__(self, distance: int, circuit_params: CircuitParams):
-        super().__init__(distance, circuit_params)
+    def __init__(self, num_stabilizer: int, circuit_params: CircuitParams):
+        super().__init__(num_stabilizer, circuit_params)
         self.cbits = [
-            circuit.ClassicalBit("m" + str(i)) for i in range(2 * self.distance + 1)
+            circuit.ClassicalBit("m" + str(i)) for i in range(2 * self.num_stabilizer + 1)
         ]
         self.qubits = [
-            circuit.Qubit(str(i), t1=self.params.t1, t2=self.params.t2) for i in range(2 * self.distance + 1)
+            circuit.Qubit(str(i), t1=self.params.t1, t2=self.params.t2) for i in range(2 * self.num_stabilizer + 1)
         ]
 
     def generate_state_encoder(self, state: str, plot=False) -> circuit.Circuit:
@@ -158,7 +158,7 @@ class RepCodeGenerator(QECGenerator):
 
         if plot:
             fig, ax = c.plot()
-            fig.set_figwidth(15)
+            fig.set_figwidth(10)
             plt.show()
         return c
 
