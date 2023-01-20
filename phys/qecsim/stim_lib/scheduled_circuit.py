@@ -68,6 +68,70 @@ def _updater(circ: stim.Circuit, inst_handler: Callable, weight=1.0):
             w = inst_handler(inst, new_circ, w)
     return new_circ, w
 
+def intertwine(a, b):
+    return [item for pair in zip(a, b) for item in pair]
+
+def shor_style_syndrome_extraction(distance,
+                                   rounds,
+                                   after_clifford_depolarization,
+                                   before_measure_flip_probability,
+                                   after_reset_flip_probability):
+
+    assert distance > 1, "distance must be at least 2"
+
+    def add_cat_state_prep(circ, anc1, anc2):
+        circ.append('H', anc_1)
+        circ.append("DEPOLARIZE1", anc_1, after_clifford_depolarization)
+        circ.append('TICK')
+        circ.append('CX', intertwine(anc_1, anc_2))
+        circ.append("DEPOLARIZE2", intertwine(anc_1, anc_2), after_clifford_depolarization)
+        circ.append("TICK")
+
+    def stabilizer_measurement(circ, anc_1, anc_2, data_qubits):
+        circ.append("CZ", intertwine(data_qubits[:-1], anc_1))
+        circ.append("CZ", intertwine(anc_2, data_qubits[1:]))
+        circ.append("DEPOLARIZE2",
+                    intertwine(data_qubits[:-1], anc_1) + intertwine(anc_2, data_qubits[1:]),
+                    after_clifford_depolarization)
+        circ.append("TICK")
+
+    qubits=range(3*(distance-1)+1)
+    data_qubits = list(qubits[::3])
+    anc_1 = list(qubits[1::3])
+    anc_2 = list(qubits[2::3])
+    anc = anc_1 + anc_2
+    circ = stim.Circuit()
+    circ.append("R", qubits)
+    circ.append("TICK")
+    for _ in range(rounds):
+        add_cat_state_prep(circ, anc_1, anc_2)
+        stabilizer_measurement(circ, anc_1, anc_2, data_qubits)
+        circ.append("H", anc)
+        circ.append("DEPOLARIZE1", anc, after_clifford_depolarization)
+        circ.append("X_ERROR", anc, before_measure_flip_probability)
+        circ.append("MR", anc)
+        circ.append("X_ERROR", anc, after_reset_flip_probability)
+    circ.append("M", data_qubits)
+    return circ
+
+def generated(code_task,
+              distance,
+              rounds,
+              after_clifford_depolarization=0,
+              before_measure_flip_probability=0,
+              after_reset_flip_probability=0):
+
+    if code_task == "shor_style_syndrome_extraction":
+        return shor_style_syndrome_extraction(distance, rounds, after_clifford_depolarization,
+                                              before_measure_flip_probability, after_reset_flip_probability)
+    else:
+        return stim.Circuit.generated(code_task,
+                               distance=distance,
+                               rounds=rounds,
+                               after_clifford_depolarization=after_clifford_depolarization,
+                               before_measure_flip_probability=before_measure_flip_probability,
+                               after_reset_flip_probability=after_reset_flip_probability
+                               )
 
 def generate_scheduled(code_task: str,
                        distance: int,
@@ -102,13 +166,14 @@ def generate_scheduled(code_task: str,
 
     :return: The generated circuit and an error detection context for performing the decoding
     """
-    circuit = stim.Circuit.generated(code_task,
-                                     distance=distance,
-                                     rounds=rounds,
-                                     after_clifford_depolarization=params.two_qubit_depolarization_rate,
-                                     before_measure_flip_probability=0,
-                                     after_reset_flip_probability=0
-                                     )
+
+    circuit = generated(code_task,
+                        distance=distance,
+                        rounds=rounds,
+                        after_clifford_depolarization=params.two_qubit_depolarization_rate,
+                        before_measure_flip_probability=0,
+                        after_reset_flip_probability=0
+                        )
     qubit_indices = {inst.targets_copy()[0].value for inst in circuit if
                      isinstance(inst, stim.CircuitInstruction) and inst.name == 'QUBIT_COORDS'}
     weight = 1.0

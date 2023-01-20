@@ -17,6 +17,28 @@ def _get_records(circ: stim.Circuit) -> list:
             m.extend(t.value for t in inst.targets_copy())
     return m
 
+def shor_style_syndrome_extract_results(circ):
+
+    n_qubits = circ.num_qubits
+    qubits = range(n_qubits)
+    n_data_qubits = len(qubits[::3])
+    n_ancillas = n_qubits - n_data_qubits
+    distance = int((n_qubits - 1)/3) + 1
+    n_stabs = distance - 1
+    sim = stim.TableauSimulator()
+    sim.do(circ)
+    record = np.array([int(x) for x in sim.current_measurement_record()])
+    n_rounds = int((len(record) - len(qubits[::3]))/n_stabs/2)
+    result = np.zeros(n_stabs)
+
+    for i in range(n_rounds):
+        anc_states = record[i*n_ancillas:(i+1)*n_ancillas]
+        parity = (anc_states[1::2] + anc_states[0::2])%2
+        result = np.vstack((result, parity))
+    data_qb_states = record[-n_data_qubits:]
+    data_qb_parity = (data_qb_states[:-1] + data_qb_states[1:])%2
+    result = np.vstack((result, data_qb_parity))
+    return result
 
 class StimErrorContext:
     """
