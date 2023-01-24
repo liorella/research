@@ -14,8 +14,8 @@ circuit = stim.Circuit.generated(
     rounds=rounds,
     distance=distance,
     after_clifford_depolarization=p,
-    before_round_data_depolarization=p,
-    before_measure_flip_probability=p)
+    before_round_data_depolarization=p
+    )
 ## extracting the detector-error model
 model = circuit.detector_error_model(decompose_errors=True)
 
@@ -25,7 +25,7 @@ matching = pymatching.Matching.from_detector_error_model(model)
 
 ## plotting the matching graph
 
-plot=True
+plot=False
 if plot:
     E=matching.edges() # edges and wieghts
     G=matching.to_networkx() #the documentation for networkX graph can be used
