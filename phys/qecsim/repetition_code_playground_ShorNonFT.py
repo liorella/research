@@ -47,6 +47,7 @@ circuit, context , _ = generate_scheduled(
 ## breaking down the 'experiment_run' (only active reset, and nodify to majority voting)
 
 #defining manually without touching the context
+
 num_rounds = rounds
 active_ancillas = np.vstack((range(3 * (distance - 1) + 1)[1::3], range(3 * (distance - 1) + 1)[2::3])).T.flatten()
 data_qubits = (range(3 * (distance - 1) + 1))[::3]
@@ -74,7 +75,7 @@ for shot in range(shots):
             ancilla_mes = do_and_get_measure_results(sim, segment, active_ancillas)  # simulate the segment
             results = (np.diff(ancilla_mes)%2)[::2]
             results_record[i, :] = results
-            reset_indicator = results
+            reset_indicator = ancilla_mes
 #            print(i)
  #           print(results)
         elif i == num_rounds:
@@ -84,9 +85,10 @@ for shot in range(shots):
             to_decode = np.diff(np.hstack((np.zeros(distance-1, dtype=np.uint8)[:, np.newaxis], results_record.T))) % 2
             frame = m.decode(to_decode)
             corrected_state = (results_data + frame) % 2
-            logical_state = np.around(np.sum(corrected_state)/context.distance, 0)
-            if np.sum(corrected_state) == 0 or np.sum(corrected_state) == distance: #only for checking if the previous line is neccesary
-                logical_counter += 1
+            logical_state = corrected_state[-1]
+            # logical_state = np.around(np.sum(corrected_state)/context.distance, 0)
+            # if np.sum(corrected_state) == 0 or np.sum(corrected_state) == distance: #only for checking if the previous line is neccesary
+            #     logical_counter += 1
             if logical_state == 0:
                 success += 1
 
@@ -95,5 +97,5 @@ print(log_error_prob)
 
 #the majority voting is not neccesary since the corrected_state will be a logical state
 #because logical_counter is 100% every time
-print(logical_counter)
+# print(logical_counter)
 # therefore, when using the pymatching decoder it is sufficient to look at a single bit
