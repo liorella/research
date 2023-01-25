@@ -87,31 +87,47 @@ def shor_style_syndrome_extraction(distance,
         circ.append("DEPOLARIZE2", intertwine(anc_1, anc_2), after_clifford_depolarization)
         circ.append("TICK")
 
-    def stabilizer_measurement(circ, anc_1, anc_2, data_qubits):
+    def stabilizer_measurement(circ, anc_1, anc_2, data_qubits,round):
         circ.append("CZ", intertwine(data_qubits[:-1], anc_1))
-        circ.append("CZ", intertwine(anc_2, data_qubits[1:]))
         circ.append("DEPOLARIZE2",
-                    intertwine(data_qubits[:-1], anc_1) + intertwine(anc_2, data_qubits[1:]),
+                    intertwine(data_qubits[:-1], anc_1),
                     after_clifford_depolarization)
         circ.append("TICK")
+        circ.append("CZ", intertwine(anc_2, data_qubits[1:]))
+        circ.append("DEPOLARIZE2",
+                    intertwine(anc_2, data_qubits[1:]),
+                    after_clifford_depolarization)
+        circ.append("TICK")
+        anc = np.vstack((anc_1, anc_2)).T.flatten()
+        circ.append("H", anc)
+        circ.append("DEPOLARIZE1", anc, after_clifford_depolarization)
+        circ.append_operation("TICK")
+        circ.append("X_ERROR", anc, before_measure_flip_probability)
+        circ.append("M", anc)
+        if round == 0:
+            for k in range(distance-1):
+                circ.append("DETECTOR", [stim.target_rec(-2 * k - 1), stim.target_rec(-2 * k - 2)], (2 * k + 1, 0))
+        else:
+            for k in range(distance-1):
+                circ.append("DETECTOR", [stim.target_rec(-2*k-1), stim.target_rec(-2*k-2), stim.target_rec(-2*k-2*(distance-1)-1), stim.target_rec(-2*k-2*(distance-1)-2)], (2 * k + 1, 0))
+        circ.append("SHIFT_COORDS", [], (0, 1))
 
-    qubits=range(3*(distance-1)+1)
+
+    qubits = range(3*(distance-1)+1)
     data_qubits = list(qubits[::3])
     anc_1 = list(qubits[1::3])
     anc_2 = list(qubits[2::3])
-    anc = anc_1 + anc_2
     circ = stim.Circuit()
     circ.append("R", qubits)
     circ.append("TICK")
-    for _ in range(rounds):
+    for round in range(rounds):
         add_cat_state_prep(circ, anc_1, anc_2)
-        stabilizer_measurement(circ, anc_1, anc_2, data_qubits)
-        circ.append("H", anc)
-        circ.append("DEPOLARIZE1", anc, after_clifford_depolarization)
-        circ.append("X_ERROR", anc, before_measure_flip_probability)
-        circ.append("MR", anc)
-        circ.append("X_ERROR", anc, after_reset_flip_probability)
+        stabilizer_measurement(circ, anc_1, anc_2, data_qubits,round)
     circ.append("M", data_qubits)
+    for k in range(distance-1):
+        circ.append("DETECTOR", [stim.target_rec(-k - 1), stim.target_rec(-k - 2), stim.target_rec(-distance-2*k-1), stim.target_rec(-distance-2*k-2)], (2*k+1,1))
+    circ.append("OBSERVABLE_INCLUDE", [stim.target_rec(- 1)], (0))
+
     return circ
 
 def generated(code_task,
