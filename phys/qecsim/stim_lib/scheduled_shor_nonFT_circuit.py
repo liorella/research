@@ -5,7 +5,7 @@ import numpy as np
 import stim
 
 from qec_generator import CircuitParams
-from stim_lib.error_context import StimErrorContext
+from stim_lib.error_context_shor import StimErrorContextShor
 from stim_lib.run_feedback import measure_instructions
 
 inst_with_duration = {'CX', 'H', 'MR', 'M', 'R', 'RZ'}
@@ -260,7 +260,7 @@ def generate_shor_nonFT_scheduled(code_task,
     if disable_ancilla_reset:
         circuit, weight = _updater(circuit, replace_mr_with_m, weight)
 
-    return circuit, StimErrorContext(circuit, code_task, distance, rounds, params), weight
+    return circuit, StimErrorContextShor(circuit, code_task, distance, rounds, params), weight
 
 
 if __name__ == '__main__':

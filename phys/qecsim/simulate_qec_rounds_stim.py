@@ -7,6 +7,41 @@ from stim_lib.error_context import StimErrorContext
 from stim_lib.scheduled_circuit import generate_scheduled, get_pauli_probs, instruction_duration
 from stim_lib.run_feedback import to_measure_segments, do_and_get_measure_results
 
+##
+def intertwine(a, b):
+    return [item for pair in zip(a, b) for item in pair]
+
+def gen_syndrome_circuit(data_qubits,
+                         anc_1: np.ndarray,
+                         anc_2: np.ndarray,
+                         context: StimErrorContext):
+    params = context.params
+    circ = stim.Circuit()
+    # this is add_cat_state_prep(circ, anc_1, anc_2)
+    circ.append('H', anc_1)
+    circ.append("DEPOLARIZE1", anc_1, params.single_qubit_depolarization_rate)
+    circ.append('TICK')
+    circ.append('CX', intertwine(anc_1, anc_2))
+    circ.append("DEPOLARIZE2", intertwine(anc_1, anc_2), params.two_qubit_depolarization_rate)
+    circ.append("TICK")
+    # stabilizer_measurement
+    circ.append("CZ", intertwine(data_qubits[:-1], anc_1))
+    circ.append("DEPOLARIZE2",
+                intertwine(data_qubits[:-1], anc_1),
+                params.two_qubit_depolarization_rate)
+    circ.append("TICK")
+    circ.append("CZ", intertwine(anc_2, data_qubits[1:]))
+    circ.append("DEPOLARIZE2",
+                intertwine(anc_2, data_qubits[1:]),
+                params.two_qubit_depolarization_rate)
+    circ.append("TICK")
+    anc = np.vstack((anc_1, anc_2)).T.flatten()
+    circ.append("H", anc)
+    circ.append("DEPOLARIZE1", anc, params.single_qubit_depolarization_rate)
+    circ.append_operation("TICK")
+    circ.append("X_ERROR", anc, params.single_qubit_depolarization_rate)
+    circ.append("M", anc)
+    return circ
 
 def gen_feedback_circuit(f_vec: np.ndarray,
                          qubits_in_reset: np.ndarray,
@@ -15,16 +50,19 @@ def gen_feedback_circuit(f_vec: np.ndarray,
     params = context.params
     to_reset = qubits_in_reset[np.nonzero(f_vec)]
     fc.append_operation("X", to_reset)
-    fc.append_operation('DEPOLARIZE1', to_reset, params.single_qubit_depolarization_rate)
-    px, py, pz = get_pauli_probs(instruction_duration(CircuitInstruction('R', [0], [0]), params),
-                                 params.t1,
-                                 params.t2
-                                 )
-    fc.append_operation('PAULI_CHANNEL_1',
-                        context.data_qubits,
-                        [px, py, pz * (1 + params.meas_induced_dephasing_enhancement)]
-                        )
-    # print(fc)
+    if params.t1 == 0:
+        fc.append_operation('DEPOLARIZE1', to_reset, params.single_qubit_depolarization_rate)
+    else:
+        fc.append_operation('DEPOLARIZE1', to_reset, params.single_qubit_depolarization_rate)
+        px, py, pz = get_pauli_probs(instruction_duration(CircuitInstruction('R', [0], [0]), params),
+                                     params.t1,
+                                     params.t2
+                                     )
+        fc.append_operation('PAULI_CHANNEL_1',
+                            context.data_qubits,
+                            [px, py, pz * (1 + params.meas_induced_dephasing_enhancement)]
+                            )
+        # print(fc)
     return fc
 
 
@@ -50,7 +88,7 @@ def experiment_run(circuit: stim.Circuit,
 
     success = 0
     for shot in range(shots):
-        surf_circ_iter = to_measure_segments(circuit)
+        rep_circ_iter = to_measure_segments(circuit)
 
         f_vec = np.zeros(len(context.active_ancillas), dtype=np.uint8)
         results_prev = np.zeros_like(f_vec)
@@ -58,7 +96,7 @@ def experiment_run(circuit: stim.Circuit,
         results_record = np.zeros((num_rounds + 1, len(context.active_ancillas)), dtype=np.uint8)
         sim = stim.TableauSimulator()
 
-        for i, segment in enumerate(surf_circ_iter):
+        for i, segment in enumerate(rep_circ_iter):
             if i < num_rounds:
 
                 # inject error
