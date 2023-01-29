@@ -22,9 +22,9 @@ from numpy.linalg import inv
 from scipy.optimize import curve_fit
 ##
 
-rounds=4
-distance=7
-p=0.03
+rounds = 4
+distance = 7
+p = 0.005
 
 cparams = CircuitParams(t1=0, #if t1=0 than use the single probability
                 t2=0,
@@ -86,9 +86,9 @@ for shot in range(shots):
             results = (np.diff(ancilla_mes)%2)[::2]
             if (results==results_prev).all():
                 success_counter+=1
-                fail_counter=0
                 if success_counter == t+1:
                     success_counter = 0
+                    fail_counter = 0
                     data_to_flip = (synd2data @ results) % 2
                     if np.sum(data_to_flip)>t:
                         data_to_flip = (data_to_flip+1) % 2
@@ -117,8 +117,8 @@ for shot in range(shots):
                 results = (np.diff(ancilla_mes) % 2)[::2]
                 if (results == results_prev).all():
                     success_counter += 1
-                    fail_counter = 0
                     if success_counter == t + 1:
+                        fail_counter = 0
                         data_to_flip = (synd2data @ results) % 2
                         if np.sum(data_to_flip) > t:
                             data_to_flip = (data_to_flip + 1) % 2
