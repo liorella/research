@@ -43,6 +43,32 @@ def gen_syndrome_circuit(data_qubits,
     circ.append("M", anc)
     return circ
 
+
+def gen_anc_parity_circuit(anc_1: np.ndarray,
+                         anc_2: np.ndarray,
+                         anc_3: np.ndarray,
+                         context: StimErrorContext):
+    params = context.params
+    circ = stim.Circuit()
+    # this is add_cat_state_prep(circ, anc_1, anc_2)
+    circ.append('H', anc_3)
+    circ.append("DEPOLARIZE1", anc_3, params.single_qubit_depolarization_rate)
+    circ.append('TICK')
+    circ.append('CZ', intertwine(anc_1, anc_3))
+    circ.append("DEPOLARIZE2", intertwine(anc_1, anc_3), params.two_qubit_depolarization_rate)
+    circ.append("TICK")
+    circ.append('CZ', intertwine(anc_2, anc_3))
+    circ.append("DEPOLARIZE2", intertwine(anc_2, anc_3), params.two_qubit_depolarization_rate)
+    circ.append('H', anc_3)
+    circ.append("DEPOLARIZE1", anc_3, params.single_qubit_depolarization_rate)
+    circ.append_operation("TICK")
+    circ.append("X_ERROR", anc_3, params.single_qubit_depolarization_rate)
+    circ.append("M", anc_3)
+    return circ
+
+
+
+
 def gen_feedback_circuit(f_vec: np.ndarray,
                          qubits_in_reset: np.ndarray,
                          context: StimErrorContext):

@@ -24,7 +24,7 @@ from scipy.optimize import curve_fit
 
 rounds=10
 distance=3
-p=0.03
+p=0.01
 
 cparams = CircuitParams(t1=0, #if t1=0 than use the single probability
                 t2=0,
