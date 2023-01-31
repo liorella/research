@@ -46,7 +46,6 @@ else:
             results[j,k]=log_error_prob
     if saving:
         np.savez('regular_repetition_stim.npz', results=results, distance_vec=distance_vec, p_vec=p_vec)
-        np.savetxt('regular_repetition_stim.txt', results)
 
 
 ## plotting
