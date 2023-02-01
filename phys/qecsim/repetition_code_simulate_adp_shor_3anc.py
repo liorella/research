@@ -22,12 +22,13 @@ if loading:
     p_vec = loaded_data.f.p_vec
     exp_rounds = loaded_data.f.exp_rounds
 else:
-    shots = 20000
-    p_vec = np.logspace(-2.5, -0.7, num=15)
+    shots = 50000
+    p_vec = np.logspace(-2.7, -0.7, num=15)
     distance_vec = range(3, 11, 2)
     exp_results = np.zeros((len(p_vec), len(distance_vec)))
     exp_rounds = np.zeros((len(p_vec), len(distance_vec)))
     for k, distance in (enumerate(distance_vec)):
+        print(distance)
         anc1 = range(4 * (distance - 1) + 1)[1::4]
         anc2 = range(4 * (distance - 1) + 1)[3::4]
         anc3 = range(4 * (distance - 1) + 1)[2::4]
@@ -55,7 +56,7 @@ else:
             circuit, context , _ = generate_scheduled(
                             code_task='shor_style_3anc_syndrome_extraction',  # looks ok
                             distance=distance,
-                            rounds=rounds,
+                            rounds=1,
                             t1_t2_depolarization=False,
                             meas_induced_dephasing_enhancement=False,
                             params=cparams
@@ -108,7 +109,7 @@ else:
                                         data_to_flip = (data_to_flip + 1) % 2
                                     sim.do(gen_feedback_circuit(data_to_flip, np.array(data_qubits), context))
                                     end_condition = True
-                                elif i > 1:
+                                elif i > 2:
                                     if delta[-1] == delta[-2]:
                                         data_to_flip = (synd2data @ results) % 2
                                         if np.sum(data_to_flip) > t:
@@ -124,9 +125,9 @@ else:
                                     sim.do(gen_feedback_circuit(data_to_flip, np.array(data_qubits), context))
                                     end_condition = True
                                 else:
-                                    for k in range(len(cond)):
-                                        if cond[k] > (t-1):
-                                            data_to_flip = (synd2data @ results_record[locs[k],:]) % 2
+                                    for r in range(len(cond)):
+                                        if cond[r] > (t-1):
+                                            data_to_flip = (synd2data @ results_record[locs[r],:]) % 2
                                             if np.sum(data_to_flip) > t:
                                                 data_to_flip = (data_to_flip + 1) % 2
                                             sim.do(gen_feedback_circuit(data_to_flip, np.array(data_qubits), context))

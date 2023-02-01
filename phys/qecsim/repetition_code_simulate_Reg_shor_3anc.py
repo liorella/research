@@ -12,8 +12,8 @@ from tqdm import tqdm
 
 from numpy.linalg import inv
 
-loading = False
-saving = True
+loading = True
+saving = False
 ##
 if loading:
     loaded_data = np.load('FT_Reg_3nc.npz')
