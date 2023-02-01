@@ -91,6 +91,7 @@ else:
 fig, ax = plt.subplots()
 for i, distance in enumerate(distance_vec):
     ax.plot(p_vec, exp_results[:,i], 'o', label=f'distance={distance}')
+ax.plot(p_vec, p_vec, label=f'single qubit')
 
 plt.xscale('log')
 plt.yscale('log')

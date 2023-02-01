@@ -7,8 +7,8 @@ from tqdm import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
 
-loading = False
-saving = True
+loading = True
+saving = False
 ##
 if loading:
     loaded_data = np.load('regular_repetition_stim.npz')
@@ -52,6 +52,7 @@ else:
 fig, ax = plt.subplots()
 for i, distance in enumerate(distance_vec):
     ax.plot(p_vec, results[:,i], 'o', label=f'distance={distance}')
+ax.plot(p_vec, p_vec, label=f'single qubit')
 
 plt.xscale('log')
 plt.yscale('log')
