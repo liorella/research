@@ -173,6 +173,73 @@ def experiment_run(circuit: stim.Circuit,
     return success / shots
 
 
+
+##
+def analyze_delta(delt: np.ndarray):
+    # delt = [1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0]
+    gamma = []
+    location_of_zeros = []
+    ind_init=[]
+    ind_end=[]
+    ind_ones_init=[]
+    ind_ones_end=[]
+    sum11=0
+    for i in range(len(delt)):
+        if delt[i]==0:
+            if i == 0:
+                gamma.append(1)
+                location_of_zeros.append(0)
+                ind_init.append(0)
+            else:
+                if delt[i-1] == 1:
+                    ind_init.append(i-1)
+                    gamma.append(1)
+                    location_of_zeros.append(i+1)
+                    ind_ones_end.append(i-1)
+                else:
+                    gamma[-1] += 1
+                if i == len(delt) - 1:
+                    ind_end.append(i)
+        else:
+            if i > 0:
+                if delt[i - 1] == 0:
+                    ind_ones_init.append(i)
+                    ind_end.append(i)
+                if i==len(delt)-1:
+                    ind_ones_end.append(i)
+            else:
+                ind_ones_init.append(0)
+    if len(gamma)==0:
+        sum11 += len(delt)-1
+        gamma=[0]
+        alpha=[0]
+        beta=[0]
+    else:
+        alpha = np.zeros(len(gamma))
+        beta = np.zeros(len(gamma))
+
+        for j in range(len(ind_ones_end)):
+            if (ind_ones_init[j] < ind_ones_end[j]):
+                sum11+=ind_ones_end[j]-ind_ones_init[j]
+            for i in range(len(gamma)):
+                if (ind_ones_end[j] > ind_end[i]):
+                    if (ind_ones_init[j] == ind_ones_end[j]):
+                        beta[i]+=1
+                    else:
+                        beta[i] += ind_ones_end[j]-ind_ones_init[j]
+                if (ind_ones_init[j] < ind_init[i]):
+                    if (ind_ones_init[j] == ind_ones_end[j]):
+                        alpha[i]+=1
+                    else:
+                        alpha[i] += ind_ones_end[j]-ind_ones_init[j]
+        alpha[0]=0
+        beta[-1]=0
+    # print(delt)
+    # print(alpha)
+    # print(beta)
+    # print(gamma)
+    return alpha+beta+gamma, location_of_zeros, sum11
+
 def monte_carlo_experiment_run(code_task: str,
                                distance: int,
                                num_rounds: int,

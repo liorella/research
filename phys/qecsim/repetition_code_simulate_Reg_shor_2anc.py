@@ -147,6 +147,8 @@ plt.legend()
 plt.xlabel('physical error')
 plt.ylabel('logical error')
 plt.grid(linestyle='--', linewidth=0.2)
+plt.xlim([10**(-2.5),0.3])
+plt.ylim([0.5E-3, 0.6])
 
 plt.show()
 
@@ -161,6 +163,7 @@ plt.legend()
 plt.xlabel('physical error')
 plt.ylabel('number of rounds until conversion')
 plt.grid(linestyle='--', linewidth=0.2)
+plt.xlim([10**(-2.5),0.3])
 
 plt.show()
 

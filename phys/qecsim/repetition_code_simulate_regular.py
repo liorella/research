@@ -17,7 +17,7 @@ if loading:
     p_vec = loaded_data.f.p_vec
 else:
     shots = 20000
-    p_vec = np.logspace(-2, -0.5, num=20)
+    p_vec = np.logspace(-2.5, -0.7, num=15)
     distance_vec = range(3, 11, 2)
     results = np.zeros((len(p_vec),len(distance_vec)))
     for j, p in tqdm(enumerate(p_vec)):
@@ -60,7 +60,7 @@ plt.legend()
 plt.xlabel('physical error')
 plt.ylabel('logical error')
 plt.show()
-plt.xlim([1E-2,p_vec[-1]+0.1])
+plt.xlim([10**(-2.5),0.3])
 plt.ylim([0.5E-3, 0.6])
 plt.grid(linestyle='--', linewidth=0.2)
 

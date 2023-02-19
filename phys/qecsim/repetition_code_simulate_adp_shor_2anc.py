@@ -14,7 +14,7 @@ from numpy.linalg import inv
 from tqdm import tqdm
 
 loading = True
-saving = False
+saving = True
 
 ##
 if loading:
@@ -24,8 +24,8 @@ if loading:
     p_vec = loaded_data.f.p_vec
     exp_rounds = loaded_data.f.exp_rounds
 else:
-    shots = 20000
-    p_vec = np.logspace(-2.5, -0.7, num=20)
+    shots = 100000
+    p_vec = np.logspace(-3.5, -2.5, num=5)
     distance_vec = range(3, 11, 2)
     exp_results = np.zeros((len(p_vec), len(distance_vec)))
     exp_rounds = np.zeros((len(p_vec), len(distance_vec)))
@@ -131,7 +131,7 @@ else:
             exp_rounds[j,k]=np.mean(rounds_count)
         print(exp_results[:,k])
     if saving:
-        np.savez('FT_adp_2nc.npz', exp_results=exp_results, exp_rounds=exp_rounds, distance_vec=distance_vec, p_vec=p_vec)
+        np.savez('FT_adp_2nc_low_prob.npz', exp_results=exp_results, exp_rounds=exp_rounds, distance_vec=distance_vec, p_vec=p_vec)
 
 ## plotting
 print(exp_results)
@@ -146,6 +146,8 @@ plt.legend()
 plt.xlabel('physical error')
 plt.ylabel('logical error')
 plt.grid(linestyle='--', linewidth=0.2)
+plt.xlim([10**(-2.5),0.3])
+plt.ylim([0.5E-3, 0.6])
 
 plt.show()
 
@@ -160,6 +162,8 @@ plt.legend()
 plt.xlabel('physical error')
 plt.ylabel('number of rounds until conversion')
 plt.grid(linestyle='--', linewidth=0.2)
+plt.xlim([10**(-2.5),0.3])
+
 
 plt.show()
 

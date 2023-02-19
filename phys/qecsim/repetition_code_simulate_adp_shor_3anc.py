@@ -12,8 +12,8 @@ from simulate_qec_rounds_stim import analyze_delta
 from tqdm import tqdm
 from numpy.linalg import inv
 
-loading = False
-saving = True
+loading = True
+saving = False
 ##
 if loading:
     loaded_data = np.load('FT_adp_3nc.npz')
@@ -155,6 +155,8 @@ plt.legend()
 plt.xlabel('physical error')
 plt.ylabel('logical error')
 plt.grid(linestyle='--', linewidth=0.2)
+plt.xlim([10**(-2.5),0.3])
+plt.ylim([0.5E-3, 0.6])
 
 plt.show()
 
@@ -169,7 +171,7 @@ plt.legend()
 plt.xlabel('physical error')
 plt.ylabel('number of rounds until conversion')
 plt.grid(linestyle='--', linewidth=0.2)
-
+plt.xlim([10**(-2.5),0.3])
 plt.show()
 
 plt.savefig('ShorFT_adp_3anc_rounds.svg')

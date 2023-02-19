@@ -24,9 +24,10 @@ from numpy.linalg import inv
 from scipy.optimize import curve_fit
 ##
 
-rounds=8
-distance=7
 p=0.003
+
+rounds=8
+distance=3
 
 cparams = CircuitParams(t1=0, #if t1=0 than use the single probability
                 t2=0,

@@ -19,11 +19,12 @@ if loading:
     p_vec = loaded_data.f.p_vec
 else:
     shots = 20000
-    p_vec = np.logspace(-2, -0.5, num=20)
+    p_vec = np.logspace(-2.5, -0.7, num=15)
     distance_vec = range(3, 11, 2)
     exp_results = np.zeros((len(p_vec),len(distance_vec)))
 
-    for k, distance in tqdm(enumerate(distance_vec)):
+    for k, distance in (enumerate(distance_vec)):
+        print(distance)
         rounds = distance
         num_rounds = rounds
         active_ancillas = np.vstack((range(3 * (distance - 1) + 1)[1::3], range(3 * (distance - 1) + 1)[2::3])).T.flatten()
@@ -34,7 +35,7 @@ else:
             matching_matrix[r, r + 1] = 1
         m = pymatching.Matching(matching_matrix, repetitions=rounds + 1)
 
-        for j, p in (enumerate(p_vec)):
+        for j, p in tqdm(enumerate(p_vec)):
             cparams = CircuitParams(t1=0,  # if t1=0 than use the single probability
                                     t2=0,
                                     single_qubit_gate_duration=20,
@@ -100,7 +101,7 @@ plt.xlabel('physical error')
 plt.ylabel('logical error')
 plt.grid(linestyle='--', linewidth=0.2)
 
-plt.xlim([1E-2, p_vec[-1]+0.1])
+plt.xlim([10**(-2.5),0.3])
 plt.ylim([0.5E-3, 0.6])
 plt.show()
 
