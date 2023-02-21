@@ -2,7 +2,7 @@
 import numpy as np
 
 import stim
-from stim_lib.run_feedback import to_measure_segments, do_and_get_measure_results
+from stim_lib.run_feedback import do_and_get_measure_results
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
