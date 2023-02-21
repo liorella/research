@@ -75,9 +75,10 @@ for k, length in tqdm(enumerate(length_vec)):
 
 np.savez('Tele_swap.npz', fail_rate=fail_rate,length_vec=length_vec, p_vec=p_vec)
 ##
+swap=np.load('Tele_swap.npz')
 fig, ax = plt.subplots()
-for i, length in enumerate(length_vec):
-    ax.plot(p_vec, fail_rate[:,i], 'o', label=f'length={length}')
+for i, length in enumerate(swap.f.length_vec):
+    ax.plot(swap.f.p_vec, swap.f.fail_rate[:,i], 'o', label=f'length={length}')
 
 plt.xscale('log')
 plt.yscale('log')
@@ -89,6 +90,7 @@ plt.title('teleportation via swap')
 
 plt.show()
 ##
+
 fig, ax = plt.subplots(2,1)
 ax[0].plot(p_vec, fail_rate[:,0], 'o', label='teleportation via swap')
 ax[0].set_xscale('log')
@@ -119,6 +121,12 @@ ax[1].legend()
 
 plt.show()
 ##
+fig, ax = plt.subplots()
+ax.plot(swap.f.length_vec*2, swap.f.fail_rate[4,:], 'o', label='teleportation via swap')
+ax.set_yscale('log')
+ax.set(xlabel='edges from source to target', ylabel='transmission error')
+ax.grid(linestyle='--', linewidth=0.2)
 
-
-
+ax.plot(regular.f.length_vec*2, regular.f.fail_rate[4,:], 'o', label='regular scheme')
+ax.set_title('C-Z and Measurement error are 10^-2')
+ax.legend()

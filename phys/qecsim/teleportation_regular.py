@@ -91,9 +91,11 @@ for k, length in tqdm(enumerate(length_vec)):
 
 np.savez('Tele_regular.npz', fail_rate=fail_rate,length_vec=length_vec, p_vec=p_vec)
 ##
+regular = np.load('Tele_regular.npz')
+
 fig, ax = plt.subplots()
-for i, length in enumerate(length_vec):
-    ax.plot(p_vec, fail_rate[:,i], 'o', label=f'length={length}')
+for i, length in enumerate(regular.f.length_vec):
+    ax.plot(regular.f.p_vec, regular.f.fail_rate[:,i], 'o', label=f'length={length}')
 
 plt.xscale('log')
 plt.yscale('log')
@@ -105,6 +107,8 @@ plt.title('regular scheme')
 
 plt.show()
 ##
+regular = np.load('Tele_regular.npz')
+
 fig, ax = plt.subplots(2,1)
 ax[0].plot(p_vec, fail_rate[:,0], 'o', label='regular')
 ax[0].set_xscale('log')
