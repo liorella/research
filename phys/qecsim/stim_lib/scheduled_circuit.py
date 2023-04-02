@@ -508,7 +508,7 @@ def generated(code_task,
         return teleportation_post_processing(distance, single_qubit_depolarization_rate, two_qubit_depolarization_rate,
                                                    before_measure_flip_probability, after_reset_flip_probability, state)
     elif code_task == "teleportation_post_processing_parallel_mes":
-        return teleportation_post_processing(distance, single_qubit_depolarization_rate, two_qubit_depolarization_rate,
+        return teleportation_post_processing_parallel_mes(distance, single_qubit_depolarization_rate, two_qubit_depolarization_rate,
                                                    before_measure_flip_probability, after_reset_flip_probability, state)
 
     else:
