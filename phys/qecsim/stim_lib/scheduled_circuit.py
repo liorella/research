@@ -391,6 +391,98 @@ def teleportation_post_processing(distance,
 
     measure_target(circ, distance, single_qubit_depolarization_rate, before_measure_flip_probability, state)
     return circ
+##
+
+def teleportation_post_processing_parallel_mes(distance,
+                                   single_qubit_depolarization_rate,
+                                   two_qubit_depolarization_rate,
+                                   before_measure_flip_probability,
+                                   after_reset_flip_probability,
+                                   state):
+
+
+    assert distance > 1, "distance must be at least 2"
+
+    def init_circuit(distance, after_reset_flip_probability, single_qubit_depolarization_rate, initial_state):
+        circ = stim.Circuit()
+        qubits = range(distance)
+        circ.append('R', qubits)
+        for i in range(distance):
+            circ.append('QUBIT_COORDS', [i], (i, 0))
+        circ.append("DEPOLARIZE1", qubits, after_reset_flip_probability)
+        if initial_state == "X":
+            circ.append('H', 0)
+            circ.append("DEPOLARIZE1", 0, single_qubit_depolarization_rate)
+        elif initial_state == "Y":
+            circ.append('H_YZ', 0)
+            circ.append("DEPOLARIZE1", 0, single_qubit_depolarization_rate)
+        elif initial_state == "mZ":
+            circ.append('X', 0)
+            circ.append("DEPOLARIZE1", 0, single_qubit_depolarization_rate)
+        elif initial_state == "mX":
+            circ.append('H', 0)
+            circ.append('Z', 0)
+            circ.append("DEPOLARIZE1", 0, single_qubit_depolarization_rate)
+        elif initial_state == "mY":
+            circ.append('H_YZ', 0)
+            circ.append('Z', 0)
+            circ.append("DEPOLARIZE1", 0, single_qubit_depolarization_rate)
+        circ.append("TICK")
+        return circ
+
+    def apply_teleportation(circ,distance, single_qubit_depolarization_rate,two_qubit_depolarization_rate,before_measure_flip_probability, initial_state):
+        qubits = range(distance)
+        target_qubit = distance - 1
+        circ.append('H', qubits[1:])
+        circ.append("DEPOLARIZE1", qubits[1:],single_qubit_depolarization_rate)
+        circ.append('TICK')
+        circ.append('CZ', qubits[1:])
+        circ.append("DEPOLARIZE2", qubits[1:], two_qubit_depolarization_rate)
+        circ.append('TICK')
+        circ.append('H', qubits[1:])
+        circ.append("DEPOLARIZE1", qubits[1:], single_qubit_depolarization_rate)
+        circ.append('CZ', qubits[:-1])
+        circ.append("DEPOLARIZE2", qubits[:-1], two_qubit_depolarization_rate)
+        circ.append('TICK')
+        circ.append('H', qubits[:-1])
+        circ.append("DEPOLARIZE1", qubits[:-1], single_qubit_depolarization_rate)
+        if initial_state == "mZ":
+            circ.append('X', target_qubit)
+            circ.append("DEPOLARIZE1", target_qubit,single_qubit_depolarization_rate)
+        elif initial_state == "X":
+            circ.append('H', target_qubit)
+            circ.append("DEPOLARIZE1", target_qubit, single_qubit_depolarization_rate)
+        elif initial_state == "Y":
+            circ.append('H_YZ', target_qubit)
+            circ.append("DEPOLARIZE1", target_qubit, single_qubit_depolarization_rate)
+        elif initial_state == "mX":
+            circ.append('Z', target_qubit)
+            circ.append('H', target_qubit)
+            circ.append("DEPOLARIZE1", target_qubit, single_qubit_depolarization_rate)
+        elif initial_state == "mY":
+            circ.append('Z', target_qubit)
+            circ.append('H_YZ', target_qubit)
+            circ.append("DEPOLARIZE1", target_qubit, single_qubit_depolarization_rate)
+        circ.append('TICK')
+        circ.append("X_ERROR", qubits, before_measure_flip_probability)
+        circ.append('M', qubits[:-1])
+        if distance == 3:
+            circ.append("DETECTOR", [stim.target_rec(-2)])
+            circ.append("DETECTOR", [stim.target_rec(-3)])
+        elif distance == 5:
+            circ.append("DETECTOR", [stim.target_rec(-2), stim.target_rec(-4)])
+            circ.append("DETECTOR", [stim.target_rec(-3), stim.target_rec(-5)])
+        else:
+            circ.append("DETECTOR", [stim.target_rec(-2), stim.target_rec(-4), stim.target_rec(-6)])
+            circ.append("DETECTOR", [stim.target_rec(-3), stim.target_rec(-5), stim.target_rec(-7)])
+        circ.append("DETECTOR", [stim.target_rec(-1)])
+
+    circ = init_circuit(distance, after_reset_flip_probability, single_qubit_depolarization_rate, initial_state=state)
+    apply_teleportation(circ,distance, single_qubit_depolarization_rate,two_qubit_depolarization_rate,before_measure_flip_probability)
+    # circ.append("Z_ERROR", distance - 1, 0.045) #T2
+    # circ.append("Y_ERROR", distance - 1, 0.015) #T1
+
+    return circ
 
 ##
 def generated(code_task,
@@ -415,6 +507,10 @@ def generated(code_task,
     elif code_task == "teleportation_post_processing":
         return teleportation_post_processing(distance, single_qubit_depolarization_rate, two_qubit_depolarization_rate,
                                                    before_measure_flip_probability, after_reset_flip_probability, state)
+    elif code_task == "teleportation_post_processing_parallel_mes":
+        return teleportation_post_processing(distance, single_qubit_depolarization_rate, two_qubit_depolarization_rate,
+                                                   before_measure_flip_probability, after_reset_flip_probability, state)
+
     else:
         return stim.Circuit.generated(code_task,
                                distance=distance,
