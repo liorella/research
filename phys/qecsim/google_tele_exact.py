@@ -232,3 +232,28 @@ for m, state in enumerate(initial_states):
         n_mat[k,m]=2*(1-fail_rate)-1
 
 print(n_mat)
+
+##
+exp_mat=[[0.82, 0.77, 0.7],
+         [0.88, 0.76, 0.7],
+         [0.82, 0.71, 0.62]]
+
+fig, ax = plt.subplots()
+for m, state in enumerate(initial_states):
+    if m==0:
+        ax.scatter(num_q_vec, n_mat[:, m], label=f'initial state ={state}, sim', marker='o',c='#1f77b4')
+        ax.scatter(num_q_vec, exp_mat[0], label=f'initial state ={state}, exp', marker='x', c='#1f77b4')
+    elif m==2:
+        ax.scatter(num_q_vec, n_mat[:, m], label=f'initial state ={state}, sim',marker='o',c='#ff7f0e')
+        ax.scatter(num_q_vec, exp_mat[1], label=f'initial state ={state}, exp', marker='x', c='#ff7f0e')
+    elif m==4:
+        ax.scatter(num_q_vec, n_mat[:, m], label=f'initial state ={state}, sim',marker='o',c='#2ca02c')
+        ax.scatter(num_q_vec, exp_mat[2], label=f'initial state ={state}, exp', marker='x', c='#2ca02c')
+
+plt.title('long-range teleportation with post-processing, parallel mes')
+plt.xlabel('# of qubits')
+plt.ylabel('Bloch-sphere vector length')
+plt.ylim((0.5,1))
+
+plt.legend()
+plt.show()

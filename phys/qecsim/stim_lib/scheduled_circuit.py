@@ -465,7 +465,7 @@ def teleportation_post_processing_parallel_mes(distance,
             circ.append("DEPOLARIZE1", target_qubit, single_qubit_depolarization_rate)
         circ.append('TICK')
         circ.append("X_ERROR", qubits, before_measure_flip_probability)
-        circ.append('M', qubits[:-1])
+        circ.append('M', qubits)
         if distance == 3:
             circ.append("DETECTOR", [stim.target_rec(-2)])
             circ.append("DETECTOR", [stim.target_rec(-3)])
@@ -478,7 +478,7 @@ def teleportation_post_processing_parallel_mes(distance,
         circ.append("DETECTOR", [stim.target_rec(-1)])
 
     circ = init_circuit(distance, after_reset_flip_probability, single_qubit_depolarization_rate, initial_state=state)
-    apply_teleportation(circ,distance, single_qubit_depolarization_rate,two_qubit_depolarization_rate,before_measure_flip_probability)
+    apply_teleportation(circ,distance, single_qubit_depolarization_rate,two_qubit_depolarization_rate,before_measure_flip_probability, initial_state=state)
     # circ.append("Z_ERROR", distance - 1, 0.045) #T2
     # circ.append("Y_ERROR", distance - 1, 0.015) #T1
 
