@@ -1,3 +1,5 @@
+import abc
+import dataclasses
 from enum import Enum
 
 import stim
@@ -16,6 +18,38 @@ class SurfaceOrientation(Enum):
 class MeasurementBasis(Enum):
     Z_BASIS = 1
     X_BASIS = 2
+
+class BaseErrorModel(abc.ABC):
+    @abc.abstractmethod
+    def generate_single_qubit_error(self, circ, qubits):
+        pass
+    def generate_two_qubit_error(self, circ, qubits):
+        pass
+    def generate_measurement_qubit_error(self, circ, qubits):
+        pass
+
+class NoErrorModel(BaseErrorModel):
+    def generate_single_qubit_error(self, circ, qubits):
+        pass
+    def generate_two_qubit_error(self, circ, qubits):
+        pass
+    def generate_measurement_qubit_error(self, circ, qubits):
+        pass
+
+@dataclasses.dataclass
+class ErrorModel(BaseErrorModel):
+    single_qubit_error: float
+    two_qubit_error: float
+    measurement_error: float
+
+    def generate_single_qubit_error(self, circ, qubits):
+        circ.append("DEPOLARIZE1", qubits, self.single_qubit_error)
+    def generate_two_qubit_error(self, circ, qubits):
+        circ.append("DEPOLARIZE2", qubits, self.two_qubit_error)
+    def generate_measurement_qubit_error(self, circ, qubits):
+        circ.append("X_ERROR", qubits, self.measurement_error)
+
+
 
 class Surface:
     def __init__(self, dist: int):
@@ -66,63 +100,6 @@ class Surface:
                 ancilla_name += 1
 
 
-        # if ((coord[0] + coord[1]) % 2) == 0:
-        #     for i in range(self.dist):
-        #         for j in range(self.dist):
-        #             if i==0 and j<(self.dist-2) and not(j%2):
-        #                 circ.append('QUBIT_COORDS', [ancilla_name], (coord[0], coord[1], 1000, j))
-        #                 self.ancilla_qubits['L'][j] = ancilla_name
-        #                 ancilla_name += 1
-        #             elif i % 2:
-        #                 circ.append('QUBIT_COORDS', [ancilla_name],
-        #                             (shift_surf_x + 2 * i - 1, shift_surf_y + 2 * j + 1))
-        #                 self.ancilla_qubits.append(ancilla_name)
-        #                 ancilla_name += 1
-        #             elif i<(self.dist-1) and i>0:
-        #                 circ.append('QUBIT_COORDS', [ancilla_name],
-        #                             (shift_surf_x + 2 * i - 1, shift_surf_y + 2 * j - 1))
-        #                 self.ancilla_qubits.append(ancilla_name)
-        #                 ancilla_name += 1
-        #             elif i==(self.dist-1):
-        #                 circ.append('QUBIT_COORDS', [ancilla_name],
-        #                             (shift_surf_x + 2 * i - 1, shift_surf_y + 2 * j - 1))
-        #                 self.ancilla_qubits.append(ancilla_name)
-        #                 ancilla_name += 1
-        #     for j in range(1, self.dist,2):
-        #         circ.append('QUBIT_COORDS', [ancilla_name],
-        #                     (shift_surf_x + 2 * self.dist - 1, shift_surf_y + 2 * j + 1))
-        #         self.ancilla_qubits.append(ancilla_name)
-        #         ancilla_name += 1
-        #
-        # else:
-        #      for i in range(self.dist):
-        #          for j in range(self.dist):
-        #             if i == 0 and j < (self.dist - 2) and not(j%2):
-        #                 circ.append('QUBIT_COORDS', [ancilla_name],
-        #                             (shift_surf_x + 2 * i - 1, shift_surf_y + 2 * j + 3))
-        #                 self.ancilla_qubits.append(ancilla_name)
-        #                 ancilla_name += 1
-        #             elif i % 2:
-        #                 circ.append('QUBIT_COORDS', [ancilla_name],
-        #                             (shift_surf_x + 2 * i - 1, shift_surf_y + 2 * j - 1))
-        #                 self.ancilla_qubits.append(ancilla_name)
-        #                 ancilla_name += 1
-        #             elif i < (self.dist - 1) and i > 0:
-        #                 circ.append('QUBIT_COORDS', [ancilla_name],
-        #                             (shift_surf_x + 2 * i - 1, shift_surf_y + 2 * j + 1))
-        #                 self.ancilla_qubits.append(ancilla_name)
-        #                 ancilla_name += 1
-        #             elif i == (self.dist - 1):
-        #                 circ.append('QUBIT_COORDS', [ancilla_name],
-        #                             (shift_surf_x + 2 * i - 1, shift_surf_y + 2 * j + 1))
-        #                 self.ancilla_qubits.append(ancilla_name)
-        #                 ancilla_name += 1
-        #      for j in range(1, self.dist,2):
-        #          circ.append('QUBIT_COORDS', [ancilla_name],
-        #                      (shift_surf_x + 2 * self.dist -1, shift_surf_y + 2 * j - 1))
-        #          self.ancilla_qubits.append(ancilla_name)
-        #          ancilla_name += 1
-
     def _all_ancillas(self):
         res = []
         for a_list in self.ancilla_qubits.values():
@@ -151,7 +128,7 @@ class Surface:
             ret = ancilla_index[0]+1, ancilla_index[1]
         return None if ret[0] < 0 or ret[1] < 0 or ret[0] >= self.dist or ret[1] >= self.dist else ret
 
-    def _get_ancilla_with_tragets(self, target_direction, stabilizer_group: int): # gets direction of 2 qubit gate and which stabilizer_group (orientation independent), creates pair (source and target qubits)
+    def _get_ancilla_with_targets(self, target_direction, stabilizer_group: int): # gets direction of 2 qubit gate and which stabilizer_group (orientation independent), creates pair (source and target qubits)
         ops = []
         directions = ['L', 'R'] if stabilizer_group == 0 else ['T', 'B']
         for direction in directions:
@@ -169,47 +146,94 @@ class Surface:
                 target = self._get_target('C', (i, j), target_direction)
                 if target is not None:
                     ops += self.ancilla_qubits['C'][i, j], self.data_qubits[target]
-
         return ops
+    def _get_ancilla_and_data_of_stabilizer(self, stabilizer_group: int): # gets direction of 2 qubit gate and which stabilizer_group (orientation independent), creates pair (source and target qubits)
 
-    def _two_qubit_epoch(self, circ, direction):
-        op0 = self._get_ancilla_with_tragets(direction, 0)
-        op1 = self._get_ancilla_with_tragets(direction, 1)
+        ops = []
+        directions = ['L', 'R'] if stabilizer_group == 0 else ['T', 'B']
+        for direction in directions:
+            for i, ancilla in enumerate(self.ancilla_qubits[direction]):
+                if ancilla >= 0:
+                    ops += ancilla
+        even_coord = 1 if self.ancilla_qubits['L'][0] == -1 else 0
+        for i in range(self.dist-1):
+            for j in range(self.dist-1):
+                if (i + j + even_coord) % 2 == stabilizer_group:
+                    continue
+                ops += self.ancilla_qubits['C'][i, j]
+            #not finished!!!!!!!
+
+
+
+
+    def _two_qubit_epoch(self, circ, direction, error_model: BaseErrorModel):
+        op0 = self._get_ancilla_with_targets(direction, 0)
+        op1 = self._get_ancilla_with_targets(direction, 1)
         if self.orientation == SurfaceOrientation.X_VERTICAL_Z_HORIZONTAL:
             circ.append("CZ", op0)
             circ.append("CX", op1)
         else:
             circ.append("CZ", op1)
             circ.append("CX", op0)
+        error_model.generate_two_qubit_error(circ, op0 + op1)
 
-    def stabilizer_round(self, circ, epoch: int):
+    def stabilizer_round(self, circ, epoch: int, measurements: list, error_model: BaseErrorModel):
+        ancillas = self._all_ancillas()
         if epoch == 0:
-            circ.append("R", self._all_ancillas())
+            circ.append("R", ancillas)
         elif epoch == 1:
-            circ.append("H", self._all_ancillas())
+            circ.append("H", ancillas)
+            error_model.generate_single_qubit_error(circ, ancillas)
         elif epoch == 2:
-            self._two_qubit_epoch(circ, 'NW')
+            self._two_qubit_epoch(circ, 'NW', error_model)
         elif epoch == 3:
-            self._two_qubit_epoch(circ, 'NE')
+            self._two_qubit_epoch(circ, 'NE', error_model)
         elif epoch == 4:
-            self._two_qubit_epoch(circ, 'SE')
+            self._two_qubit_epoch(circ, 'SE', error_model)
         elif epoch == 5:
-            self._two_qubit_epoch(circ, 'SW')
+            self._two_qubit_epoch(circ, 'SW', error_model)
         elif epoch == 6:
-            circ.append("H", self._all_ancillas())
+            circ.append("H", ancillas)
+            error_model.generate_single_qubit_error(circ, ancillas)
         elif epoch == 7:
-            circ.append("M", self._all_ancillas())
+            error_model.generate_measurement_qubit_error(circ, ancillas)
+            circ.append("M", ancillas)
+            measurements.extend(ancillas)
+            for ancilla in ancillas:
+                occ = np.where(np.array(measurements) == ancilla)[0]-len(measurements)
+                if len(occ) >= 2:
+                    circ.append("DETECTOR", [stim.target_rec(occ[-1]), stim.target_rec(occ[-2])])
+                else:
+                    circ.append("DETECTOR", [stim.target_rec(occ[-1])])
+
+
 
     def initialize(self, circ, state):
         pass
 
-    def measurement(self, circ: stim.Circuit, basis: MeasurementBasis):
-        if basis == MeasurementBasis.Z_BASIS:
-            circ.append('MZ',self.data_qubits.flatten())
-        elif basis == MeasurementBasis.X_BASIS:
-            circ.append('H', self.data_qubits.flatten())
+    def append_last_round_detectors(self, circ: stim.Circuit,basis: MeasurementBasis):  ##gets
+
+
+
+    def measurement(self, circ: stim.Circuit, basis: MeasurementBasis, error_model: BaseErrorModel, measurements: list):
+        data_qubits=self.data_qubits.flatten()
+        if basis == MeasurementBasis.X_BASIS:
+            circ.append('H', data_qubits)
+            error_model.generate_single_qubit_error(circ, data_qubits)
             circ.append("Tick")
-            circ.append('MZ', self.data_qubits.flatten())
+        error_model.generate_measurement_qubit_error(circ, data_qubits)
+        circ.append('MZ', data_qubits)
+        measurements.extend(data_qubits)
+        for data_qubit in data_qubits:
+            self.
+            occ = np.where(np.array(measurements) == ancilla)[0]-len(measurements)
+
+            if len(occ) >= 2:
+                circ.append("DETECTOR", [stim.target_rec(occ[-1]), stim.target_rec(occ[-2])])
+            else:
+                circ.append("DETECTOR", [stim.target_rec(occ[-1])])
+
+
         #circ.append("DETECTOR", [stim.target_rec(-2), stim.target_rec(-4), stim.target_rec(-6)])
         #circ.append("OBSERVABLE_INCLUDE", [stim.target_rec(- 1)], (0))
 
@@ -220,12 +244,13 @@ class Surface:
 
 class Experiment:
 
-    def __init__(self, surfaces: Dict[tuple, Surface]):
+    def __init__(self, surfaces: Dict[tuple, Surface], error_model: BaseErrorModel):
         self.circ = stim.Circuit()
         for coordinate, surface in surfaces.items():
             surface.allocate_qubits(self.circ, coordinate)
-
         self.surfaces = surfaces
+        self.measurements = []
+        self.error_model = error_model
 
     def __getitem__(self, coor):
         return self.surfaces[coor]
@@ -234,28 +259,33 @@ class Experiment:
         self.surfaces[coor].flip_orientation()
 
     def measure_surface(self, coor: tuple, basis: MeasurementBasis):
-        self.surfaces[coor].measurement(self.circ, basis)
+        self.surfaces[coor].measurement(self.circ, basis, self.error_model)
 
     def stabilizer_round(self):
         for epoch in range(8):
             for surface in self.surfaces.values():
-                surface.stabilizer_round(self.circ, epoch)
+                surface.stabilizer_round(self.circ, epoch, self.measurements, self.error_model)
             self.circ.append("TICK")
 
 
-
 ##
+error_model = ErrorModel(single_qubit_error=0.005, two_qubit_error=0.03, measurement_error=0.05)
+# error_model = NoErrorModel()
 d=3
 ex = Experiment({
     (0,0): Surface(d),
-    (1,0): Surface(d)
-})
+    (1,0): Surface(d),
+    (0,1): Surface(d)
+}, error_model)
 
 
 ##
 
 ex[0, 0].flip_orientation()
 ex.stabilizer_round()
+ex.stabilizer_round()
+ex.measure_surface((0, 0), MeasurementBasis.X_BASIS)
+
 print(ex.circ)
 
 ##
@@ -265,6 +295,16 @@ print(ex.circ)
 ##
 ex.measure_surface((0, 0), MeasurementBasis.X_BASIS)
 ex.measure_surface((0,1), MeasurementBasis.X_BASIS)
+
+
+
+
+
+
+
+
+
+
 
 
 ## dividing into ticks
