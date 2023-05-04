@@ -7,6 +7,7 @@ import pymatching
 import numpy as np
 from matplotlib import pyplot as plt
 from typing import Dict, List
+import networkx as nx
 
 
 ##
@@ -331,7 +332,7 @@ class Experiment:
 
 
 ##
-error_model = ErrorModel(single_qubit_error=0.001, two_qubit_error=0.03, measurement_error=0.05)
+error_model = ErrorModel(single_qubit_error=0.0001, two_qubit_error=0.0001, measurement_error=0.0001)
 # error_model = NoErrorModel()
 d=5
 ex = Experiment({
@@ -344,11 +345,11 @@ ex = Experiment({
 ##
 #ex[0, 0].flip_orientation()
 
-ex.Initialize_surface((0,0), initialState.Z_MINUS)
+ex.Initialize_surface((0,0), initialState.X_PLUS)
 ex.Initialize_surface((1,0), initialState.Z_MINUS)
 ex.stabilizer_round()
 # ex.stabilizer_round()
-ex.measure_surface((0, 0), MeasurementBasis.Z_BASIS, observable_index=0)
+ex.measure_surface((0, 0), MeasurementBasis.X_BASIS, observable_index=0)
 ex.measure_surface((1, 0), MeasurementBasis.Z_BASIS, 1)
 
 print(ex.circ)
@@ -358,8 +359,9 @@ model = ex.circ.detector_error_model(decompose_errors=True)
 matching = pymatching.Matching.from_detector_error_model(model)
 
 sampler = ex.circ.compile_detector_sampler()
-syndrome, actual_observables = sampler.sample(shots=1000, separate_observables=True)
+syndrome, actual_observables = sampler.sample(shots=10000, separate_observables=True)
 
+print(sum(actual_observables))
 ##
 E=matching.edges() # edges and wieghtsD
 G=matching.to_networkx() #the documentation for networkX graph can be used
