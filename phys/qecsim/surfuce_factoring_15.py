@@ -10,6 +10,8 @@ from typing import Dict, List
 import networkx as nx
 
 
+
+
 ##
 
 class SurfaceOrientation(Enum):
@@ -82,7 +84,7 @@ class Surface:
         for i in range(self.dist-1):
             if ((direction == 'L' or direction == 'T') and (coord[0] + coord[1] + i) % 2 == 0) or \
                ((direction == 'B' or direction == 'R') and (coord[0] + coord[1] + i) % 2 != 0):
-                # circ.append('QUBIT_COORDS', [ancilla_name], (coord[0], coord[1], direction_to_number[direction], i))
+                #circ.append('QUBIT_COORDS', [ancilla_name], (coord[0], coord[1], direction_to_number[direction], i))
                 self.ancilla_qubits[direction][i] = ancilla_name
                 ancilla_name += 1
             else:
@@ -95,7 +97,7 @@ class Surface:
         data_name = coord[0] * 10000 + coord[1] * 1000
         for i in range(self.dist):
             for j in range(self.dist):
-                # circ.append('QUBIT_COORDS', [data_name], (coord[0], coord[1], i, j))
+               # circ.append('QUBIT_COORDS', [data_name], (coord[0], coord[1], i, j))
                 self.data_qubits[i, j] = data_name
                 data_name += 1
 
@@ -182,11 +184,11 @@ class Surface:
         op0 = self._get_ancilla_with_targets(direction, 0)
         op1 = self._get_ancilla_with_targets(direction, 1)
         if self.orientation == SurfaceOrientation.X_VERTICAL_Z_HORIZONTAL:
-            circ.append("CX", list(reversed(op1)))
-            circ.append("CX", op0)
-        else:
-            circ.append("CX", op1)
             circ.append("CX", list(reversed(op0)))
+            circ.append("CX", op1)
+        else:
+            circ.append("CX", op0)
+            circ.append("CX", list(reversed(op1)))
         error_model.generate_two_qubit_error(circ, op0 + op1)
 
 
@@ -200,13 +202,13 @@ class Surface:
             circ.append("H", target_for_H)
             error_model.generate_single_qubit_error(circ, target_for_H)
         elif epoch == 2:
-            self._two_qubit_epoch(circ, 'NW', error_model)
-        elif epoch == 3:
-            self._two_qubit_epoch(circ, 'NE', error_model)
-        elif epoch == 4:
             self._two_qubit_epoch(circ, 'SE', error_model)
-        elif epoch == 5:
+        elif epoch == 3:
             self._two_qubit_epoch(circ, 'SW', error_model)
+        elif epoch == 4:
+            self._two_qubit_epoch(circ, 'NE', error_model)
+        elif epoch == 5:
+            self._two_qubit_epoch(circ, 'NW', error_model)
         elif epoch == 6:
             circ.append("H", target_for_H)
             error_model.generate_single_qubit_error(circ, target_for_H)
@@ -289,7 +291,7 @@ class Surface:
         error_model.generate_measurement_qubit_error(circ, self._all_ancillas())
         circ.append("M", self._all_ancillas())
         measurements.extend(self._all_ancillas())
-        circ.append("TICK")
+        #circ.append("TICK")
         if state == initialState.Z_PLUS or state == initialState.Z_MINUS:
             ancillas = self._group_ancillas()[self.orientation.value]
         elif state == initialState.X_PLUS or state == initialState.X_MINUS:
@@ -300,6 +302,17 @@ class Surface:
 
     def print_surface_name(self):
         print(self.data_qubits)
+
+
+class LatticeSurgery:
+    def __init__(self, surface1: Surface, surface2: Surface, surgery_direction: int):
+
+        self.data_qubits = surface1.data_qubits[-1][-1]+surface1.dist**2+surgery_direction*100+np.array(range(surface1.dist))
+        self.ancilla_qubits = [self.data_qubits[-1], self.data_qubits[-1]+1]
+        self.logical_basis = [(surface1.orientation.value + surgery_direction)%2,
+                              (surface2.orientation.value + surgery_direction)%2]
+
+
 
 
 
@@ -330,30 +343,54 @@ class Experiment:
                 surface.stabilizer_round(self.circ, epoch, self.measurements, self.error_model)
             self.circ.append("TICK")
 
+    def lattice_surgury(self, coor1: tuple, coor2: tuple):
+
+        if abs(coor1[0]-coor2[0]) == 1: #the surgery is in the x-axes (between the vertical edges logical operators)
+            surgery_direction = 0
+            surgery_logical_basis = [(self.surfaces[coor1].orientation.value+1)%2, (self.surfaces[coor2].orientation.value+1)%2] #0 is in logical Z and 1 is logical X
+        elif abs(coor1[1]-coor2[1]) == 1: #the surgery is in the y-axes (between the horizontal edges logical operators)
+            surgery_direction = 1
+            surgery_logical_basis = [self.surfaces[coor1].orientation.value, self.surfaces[coor2].orientation.value]
+        else:
+            pass
+        print(surgery_direction)
+        print(surgery_logical_basis)
+
+
+
+
+
+
+
+
 
 ##
-error_model = ErrorModel(single_qubit_error=0.0001, two_qubit_error=0.0001, measurement_error=0.0001)
+error_model = ErrorModel(single_qubit_error=0.01, two_qubit_error=0.01, measurement_error=0.05)
 # error_model = NoErrorModel()
-d=5
+d=3
 ex = Experiment({
     (0,0): Surface(d),
-     (1,0): Surface(d),
+    (1,0): Surface(d)
     # (0,1): Surface(d)
 }, error_model)
 
 
 ##
-#ex[0, 0].flip_orientation()
+ex[0, 0].flip_orientation()
 
 ex.Initialize_surface((0,0), initialState.X_PLUS)
 ex.Initialize_surface((1,0), initialState.Z_MINUS)
+#  ex.stabilizer_round()
+# ex.stabilizer_round()
 ex.stabilizer_round()
 # ex.stabilizer_round()
+ex.lattice_surgury((0, 0),(1, 0))
 ex.measure_surface((0, 0), MeasurementBasis.X_BASIS, observable_index=0)
-ex.measure_surface((1, 0), MeasurementBasis.Z_BASIS, 1)
+ex.measure_surface((1, 0), MeasurementBasis.Z_BASIS, observable_index=1)
 
-print(ex.circ)
+ #print(ex.circ)
 # ex.circ.diagram()
+
 ##
 model = ex.circ.detector_error_model(decompose_errors=True)
 matching = pymatching.Matching.from_detector_error_model(model)
@@ -362,6 +399,8 @@ sampler = ex.circ.compile_detector_sampler()
 syndrome, actual_observables = sampler.sample(shots=10000, separate_observables=True)
 
 print(sum(actual_observables))
+
+
 ##
 E=matching.edges() # edges and wieghtsD
 G=matching.to_networkx() #the documentation for networkX graph can be used
@@ -498,3 +537,77 @@ model2 = Circuit2.detector_error_model(decompose_errors=True)
 
 sampler2 = Circuit2.compile_detector_sampler()
 syndrome2, actual_observables2 = sampler2.sample(shots=1000, separate_observables=True)
+##Also len(stim.Circuit.shortest_graphlike_error()) will be too low if you forgot a detector somewhere, or didn't do enough rounds of stitching to make the measurement result reliable.
+
+def count_determined_measurements_in_circuit(circuit: stim.Circuit) -> int: # should equal the number of detectors plus the number of observables
+    """Simulates the circuit, counting how many measurements were determined.
+
+    In most cases, for a quantum error correcting code, the result should be
+    related to the number of detectors plus the number of observables declared
+    in the circuit.
+    """
+
+    num_determined_measurements = 0
+    sim = stim.TableauSimulator()
+    n = circuit.num_qubits
+
+    def run_block(block: stim.Circuit, reps: int):
+        nonlocal num_determined_measurements
+        for _ in range(reps):
+            for inst in block:
+                if isinstance(inst, stim.CircuitRepeatBlock):
+                    run_block(inst.body_copy(), inst.repeat_count)
+                elif inst.name == 'M' or inst.name == 'MR':
+                    args = inst.gate_args_copy()
+                    for t in inst.targets_copy():
+                        assert t.is_qubit_target
+                        known = sim.peek_z(t.value) != 0
+                        num_determined_measurements += known
+                        sim.do(stim.CircuitInstruction(inst.name, [t.value], args))
+                elif inst.name == 'MX' or inst.name == 'MRX':
+                    args = inst.gate_args_copy()
+                    for t in inst.targets_copy():
+                        assert t.is_qubit_target
+                        known = sim.peek_x(t.value) != 0
+                        num_determined_measurements += known
+                        sim.do(stim.CircuitInstruction(inst.name, [t.value], args))
+                elif inst.name == 'MY' or inst.name == 'MRY':
+                    args = inst.gate_args_copy()
+                    for t in inst.targets_copy():
+                        assert t.is_qubit_target
+                        known = sim.peek_y(t.value) != 0
+                        num_determined_measurements += known
+                        sim.do(stim.CircuitInstruction(inst.name, [t.value], args))
+                elif inst.name == 'MPP':
+                    args = inst.gate_args_copy()
+                    targets = inst.targets_copy()
+                    start = 0
+                    while start < len(targets):
+                        end = start + 1
+                        while end < len(targets) and targets[end].is_combiner:
+                            end += 2
+
+                        p = stim.PauliString(n)
+                        for t in targets[start:end:2]:
+                            if t.is_x_target:
+                                p[t.value] = 'X'
+                            elif t.is_y_target:
+                                p[t.value] = 'Y'
+                            elif t.is_z_target:
+                                p[t.value] = 'Z'
+                            else:
+                                raise NotImplementedError(f'{t=} {inst=}')
+
+                        known = sim.peek_observable_expectation(p) != 0
+                        num_determined_measurements += known
+                        sim.do(stim.CircuitInstruction(inst.name, targets[start:end], args))
+
+                        start = end
+                else:
+                    sim.do(inst)
+
+    run_block(circuit, 1)
+    return num_determined_measurements
+
+len(ex.circ.shortest_graphlike_error())
+count_determined_measurements_in_circuit(ex.circ)
