@@ -29,7 +29,9 @@ class initialState(Enum):
     X_MINUS = 3
     Y_PLUS = 4
     T_STATE = 5
-
+class SurgeryOrientation(Enum):
+    VERTICAL = 0
+    HORIZONTAL = 1
 
 class BaseErrorModel(abc.ABC):
     @abc.abstractmethod
@@ -62,54 +64,23 @@ class ErrorModel(BaseErrorModel):
         circ.append("X_ERROR", qubits, self.measurement_error)
 
 
-class Surface:
-    def __init__(self, dist: int):
-        self.dist = dist
-        self.orientation = SurfaceOrientation.X_VERTICAL_Z_HORIZONTAL
-        self.data_qubits = np.zeros((dist, dist), dtype=int)
-        self.ancilla_qubits = {'L': np.zeros(((dist-1), ), dtype=int),
-                               'R': np.zeros(((dist-1), ), dtype=int),
-                               'T': np.zeros(((dist-1), ), dtype=int),
-                               'B': np.zeros(((dist-1), ), dtype=int),
-                               'C': np.zeros((dist-1, dist-1), dtype=int)}
+class BaseSurface(abc.ABC):
 
-    def flip_orientation(self):
-        if self.orientation.value:
-            self.orientation = SurfaceOrientation.X_VERTICAL_Z_HORIZONTAL
-        else:
-            self.orientation = SurfaceOrientation.Z_VERTICAL_X_HORIZONTAL
+    def __init__(self, width: int, height: int):
+        self.width = width
+        self.height = height
 
-    def _allocate_ancillas(self, circ, coord, direction: str, ancilla_name):
-        direction_to_number = {'L': 10000, 'T': 10001, 'R': 10002, 'B': 10003}
-        for i in range(self.dist-1):
-            if ((direction == 'L' or direction == 'T') and (coord[0] + coord[1] + i) % 2 == 0) or \
-               ((direction == 'B' or direction == 'R') and (coord[0] + coord[1] + i) % 2 != 0):
-                #circ.append('QUBIT_COORDS', [ancilla_name], (coord[0], coord[1], direction_to_number[direction], i))
-                self.ancilla_qubits[direction][i] = ancilla_name
-                ancilla_name += 1
-            else:
-                self.ancilla_qubits[direction][i] = -1
-        return ancilla_name
+        self.data_qubits = np.zeros((width, height), dtype=int)
+        self.ancilla_qubits = {'L': np.zeros(((height - 1),), dtype=int),
+                               'R': np.zeros(((height - 1),), dtype=int),
+                               'T': np.zeros(((width - 1),), dtype=int),
+                               'B': np.zeros(((width - 1),), dtype=int),
+                               'C': np.zeros((width - 1, height - 1), dtype=int)}
+        self.ancilla_groups = {0: set(), 1: set(), 2: set(), 3: set()}
 
-
-    def allocate_qubits(self, circ, coord):
-        ancilla_name = coord[0] * 10000 + coord[1] * 1000 + self.dist ** 2
-        data_name = coord[0] * 10000 + coord[1] * 1000
-        for i in range(self.dist):
-            for j in range(self.dist):
-               # circ.append('QUBIT_COORDS', [data_name], (coord[0], coord[1], i, j))
-                self.data_qubits[i, j] = data_name
-                data_name += 1
-
-        for direction in ['L', 'R', 'T', 'B']:
-            ancilla_name = self._allocate_ancillas(circ, coord, direction, ancilla_name)
-
-        for i in range(self.dist-1):
-            for j in range(self.dist-1):
-                # circ.append('QUBIT_COORDS', [ancilla_name], (coord[0], coord[1], 1004, i, j))
-                self.ancilla_qubits['C'][i, j] = ancilla_name
-                ancilla_name += 1
-
+    @abc.abstractmethod
+    def allocate_qubits(self, coord):
+        pass
 
     def _all_ancillas(self):
         res = []
@@ -123,9 +94,9 @@ class Surface:
         if ancilla_direction == 'L':
             ancilla_index = (-1, ancilla_index)
         elif ancilla_direction == 'R':
-            ancilla_index = (self.dist-1, ancilla_index)
+            ancilla_index = (self.width-1, ancilla_index)
         elif ancilla_direction == 'T':
-            ancilla_index = (ancilla_index, self.dist-1)
+            ancilla_index = (ancilla_index, self.height-1)
         elif ancilla_direction == 'B':
             ancilla_index = (ancilla_index, -1)
         ret = None
@@ -137,86 +108,59 @@ class Surface:
             ret = ancilla_index[0]+1, ancilla_index[1]+1
         elif direction == 'SE':
             ret = ancilla_index[0]+1, ancilla_index[1]
-        return None if ret[0] < 0 or ret[1] < 0 or ret[0] >= self.dist or ret[1] >= self.dist else ret
-
-    def _group_ancillas(self):
-        even_coord = 1 if self.ancilla_qubits['L'][0] == -1 else 0
-        ancilla_in_group0=[]
-        ancilla_in_group1=[]
-        for i, direction in enumerate(['L', 'R', 'T', 'B']):
-            for ancilla in self.ancilla_qubits[direction]:
-                if ancilla >= 0:
-                    if i<2:
-                        ancilla_in_group0.append(ancilla)
-                    else:
-                        ancilla_in_group1.append(ancilla)
-        for i in range(self.dist - 1):
-            for j in range(self.dist - 1):
-                if (i + j + even_coord) % 2 :
-                    ancilla_in_group0.append(self.ancilla_qubits['C'][i, j])
-                else:
-                    ancilla_in_group1.append(self.ancilla_qubits['C'][i, j])
-        return [ancilla_in_group0,ancilla_in_group1]
-
+        return None if ret[0] < 0 or ret[1] < 0 or ret[0] >= self.width or ret[1] >= self.height else ret
 
     def _get_ancilla_with_targets(self, target_direction, stabilizer_group: int): # gets direction of 2 qubit gate and which stabilizer_group (orientation independent), creates pair (source and target qubits)
         ops = []
-        directions = ['L', 'R'] if stabilizer_group == 0 else ['T', 'B']
-        for direction in directions:
+        my_ancillas = self.ancilla_groups[stabilizer_group]
+        for direction in ['L', 'R', 'T', 'B']:
             for i, ancilla in enumerate(self.ancilla_qubits[direction]):
-                if ancilla >= 0:
+                if ancilla >= 0 and ancilla in my_ancillas:
                     target = self._get_target(direction, i, target_direction)
                     if target is not None:
                         ops += ancilla, self.data_qubits[target]
 
-        even_coord = 1 if self.ancilla_qubits['L'][0] == -1 else 0
-        for i in range(self.dist-1):
-            for j in range(self.dist-1):
-                if (i + j + even_coord) % 2 == stabilizer_group:
-                    continue
-                target = self._get_target('C', (i, j), target_direction)
-                if target is not None:
-                    ops += self.ancilla_qubits['C'][i, j], self.data_qubits[target]
+        for i in range(self.width-1):
+            for j in range(self.height-1):
+                ancilla = self.ancilla_qubits['C'][i, j]
+                if ancilla in my_ancillas:
+                    target = self._get_target('C', (i, j), target_direction)
+                    if target is not None:
+                        ops += ancilla, self.data_qubits[target]
         return ops
 
+    def _apply_group_two_qubit_gate(self, circ, direction, error_model: BaseErrorModel, ancilla_group: int, gate: str):
+        op = self._get_ancilla_with_targets(direction, ancilla_group)
+        circ.append(gate, op)
+        error_model.generate_two_qubit_error(circ, op)
 
-    def _two_qubit_epoch(self, circ, direction, error_model: BaseErrorModel):
-        op0 = self._get_ancilla_with_targets(direction, 0)
-        op1 = self._get_ancilla_with_targets(direction, 1)
-        if self.orientation == SurfaceOrientation.X_VERTICAL_Z_HORIZONTAL:
-            circ.append("CX", list(reversed(op0)))
-            circ.append("CX", op1)
-        else:
-            circ.append("CX", op0)
-            circ.append("CX", list(reversed(op1)))
-        error_model.generate_two_qubit_error(circ, op0 + op1)
-
-
+    @abc.abstractmethod
+    def _apply_two_qubit_gate_epoch(self, circ, direction, error_model: BaseErrorModel):
+        pass
 
     def stabilizer_round(self, circ, epoch: int, measurements: list, error_model: BaseErrorModel):
-        ancillas = self._group_ancillas()
-        target_for_H = ancillas[0] if self.orientation == SurfaceOrientation.Z_VERTICAL_X_HORIZONTAL else ancillas[1]
+        ancillas = self._all_ancillas()
         if epoch == 0:
-            circ.append("R", ancillas[0]+ancillas[1])
+            circ.append("R", ancillas)
         elif epoch == 1:
-            circ.append("H", target_for_H)
-            error_model.generate_single_qubit_error(circ, target_for_H)
+            circ.append("H", ancillas)
+            error_model.generate_single_qubit_error(circ, ancillas)
         elif epoch == 2:
-            self._two_qubit_epoch(circ, 'SE', error_model)
+            self._apply_two_qubit_gate_epoch(circ, 'SE', error_model)
         elif epoch == 3:
-            self._two_qubit_epoch(circ, 'SW', error_model)
+            self._apply_two_qubit_gate_epoch(circ, 'SW', error_model)
         elif epoch == 4:
-            self._two_qubit_epoch(circ, 'NE', error_model)
+            self._apply_two_qubit_gate_epoch(circ, 'NE', error_model)
         elif epoch == 5:
-            self._two_qubit_epoch(circ, 'NW', error_model)
+            self._apply_two_qubit_gate_epoch(circ, 'NW', error_model)
         elif epoch == 6:
-            circ.append("H", target_for_H)
-            error_model.generate_single_qubit_error(circ, target_for_H)
+            circ.append("H", ancillas)
+            error_model.generate_single_qubit_error(circ, ancillas)
         elif epoch == 7:
-            error_model.generate_measurement_qubit_error(circ, ancillas[0]+ancillas[1])
-            circ.append("M", ancillas[0]+ancillas[1])
-            measurements.extend(ancillas[0]+ancillas[1])
-            for ancilla in (ancillas[0]+ancillas[1]):
+            error_model.generate_measurement_qubit_error(circ, ancillas)
+            circ.append("M", ancillas)
+            measurements.extend(ancillas)
+            for ancilla in ancillas:
                 occ = np.where(np.array(measurements) == ancilla)[0]-len(measurements)
                 if len(occ) >= 2:
                     circ.append("DETECTOR", [stim.target_rec(occ[-1]), stim.target_rec(occ[-2])])
@@ -224,7 +168,61 @@ class Surface:
                     circ.append("DETECTOR", [stim.target_rec(occ[-1])])
 
 
+class Surface(BaseSurface):
+    def __init__(self, dist: int):
+        super().__init__(dist, dist)
+        self.dist = dist
+        self.orientation = SurfaceOrientation.X_VERTICAL_Z_HORIZONTAL
 
+    def flip_orientation(self):
+        if self.orientation.value:
+            self.orientation = SurfaceOrientation.X_VERTICAL_Z_HORIZONTAL
+        else:
+            self.orientation = SurfaceOrientation.Z_VERTICAL_X_HORIZONTAL
+
+    def _allocate_boundary_ancillas(self, coord, direction: str, name):
+        for i in range(self.dist-1):
+            if ((direction == 'L' or direction == 'T') and (coord[0] + coord[1] + i) % 2 == 0) or \
+               ((direction == 'B' or direction == 'R') and (coord[0] + coord[1] + i) % 2 != 0):
+                self.ancilla_qubits[direction][i] = name
+                if direction == 'L' or direction == 'R':
+                    self.ancilla_groups[0].add(name)
+                else:
+                    self.ancilla_groups[1].add(name)
+                name += 1
+            else:
+                self.ancilla_qubits[direction][i] = -1
+        return name
+
+    def _allocate_central_ancillas(self, coord, name):
+        for i in range(self.dist-1):
+            for j in range(self.dist-1):
+                self.ancilla_qubits['C'][i, j] = name
+                if (coord[0] + coord[1] + i + j) % 2 == 0:
+                    self.ancilla_groups[1].add(name)
+                else:
+                    self.ancilla_groups[0].add(name)
+                name += 1
+
+    def _allocate_data_qubits(self, name):
+        for i in range(self.dist):
+            for j in range(self.dist):
+                self.data_qubits[i, j] = name
+                name += 1
+        return name
+
+    def allocate_qubits(self, coord):
+        name = coord[0] * 10000 + coord[1] * 1000
+        name = self._allocate_data_qubits(name)
+
+        for direction in ['L', 'R', 'T', 'B']:
+            name = self._allocate_boundary_ancillas(coord, direction, name)
+
+        self._allocate_central_ancillas(coord, name)
+
+    def _apply_two_qubit_gate_epoch(self, circ, direction, error_model: BaseErrorModel):
+        self._apply_group_two_qubit_gate(circ, direction, error_model, self.orientation.value, 'CZ')
+        self._apply_group_two_qubit_gate(circ, direction, error_model, 1 - self.orientation.value, 'CX')
 
     def _add_measurement_detectors(self, circ: stim.Circuit, basis: MeasurementBasis, measurements: list):
         stabilizer_group = 0 if self.orientation.value == basis.value else 1
@@ -291,12 +289,11 @@ class Surface:
         error_model.generate_measurement_qubit_error(circ, self._all_ancillas())
         circ.append("M", self._all_ancillas())
         measurements.extend(self._all_ancillas())
-        #circ.append("TICK")
         if state == initialState.Z_PLUS or state == initialState.Z_MINUS:
-            ancillas = self._group_ancillas()[self.orientation.value]
+            ancillas_for_detectors = self.ancilla_groups[self.orientation.value]
         elif state == initialState.X_PLUS or state == initialState.X_MINUS:
-            ancillas = self._group_ancillas()[not(self.orientation.value)]
-        for ancilla in ancillas:
+            ancillas_for_detectors = self.ancilla_groups[1 - self.orientation.value]
+        for ancilla in ancillas_for_detectors:
             occ = np.where(np.array(measurements) == ancilla)[0] - len(measurements)
             circ.append("DETECTOR", [stim.target_rec(occ)])
 
@@ -304,13 +301,35 @@ class Surface:
         print(self.data_qubits)
 
 
-class LatticeSurgery:
-    def __init__(self, surface1: Surface, surface2: Surface, surgery_direction: int):
+class LatticeSurgery(BaseSurface):
 
-        self.data_qubits = surface1.data_qubits[-1][-1]+surface1.dist**2+surgery_direction*100+np.array(range(surface1.dist))
-        self.ancilla_qubits = [self.data_qubits[-1], self.data_qubits[-1]+1]
-        self.logical_basis = [(surface1.orientation.value + surgery_direction)%2,
-                              (surface2.orientation.value + surgery_direction)%2]
+    def __init__(self, surface1: Surface, surface2: Surface, surgery_orientation: SurgeryOrientation):
+        super().__init__(
+            surface1.dist + surface2.dist + 1 if surgery_orientation == SurgeryOrientation.HORIZONTAL else surface1.dist,
+            surface1.dist + surface2.dist + 1 if surgery_orientation == SurgeryOrientation.VERTICAL else surface1.dist
+        )
+        self.surface1 = surface1
+        self.surface2 = surface2
+        self.orientation = surgery_orientation
+        if surface1.dist != surface2.dist:
+            raise RuntimeError("Surfaces should be with the same dist")
+
+    def _allocate_data_qubits(self):
+        dist = self.surface1.dist
+        self.data_qubits[0:dist, 0:dist] = self.surface1.data_qubits
+        if self.orientation == SurgeryOrientation.VERTICAL:
+            self.data_qubits[(dist + 1):(2 * dist + 1), 0:dist] = self.surface2.data_qubits
+
+        else:
+            self.data_qubits[0:dist, (dist + 1):(2 * dist + 1)] = self.surface2.data_qubits
+
+    def allocate_qubits(self, coord):
+        pass
+
+    def _apply_two_qubit_gate_epoch(self, circ, direction, error_model: BaseErrorModel):
+        pass
+
+
 
 
 
@@ -321,7 +340,7 @@ class Experiment:
     def __init__(self, surfaces: Dict[tuple, Surface], error_model: BaseErrorModel):
         self.circ = stim.Circuit()
         for coordinate, surface in surfaces.items():
-            surface.allocate_qubits(self.circ, coordinate)
+            surface.allocate_qubits(coordinate)
         self.surfaces = surfaces
         self.measurements = []
         self.error_model = error_model
