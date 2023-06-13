@@ -170,7 +170,7 @@ for r, rounds in enumerate(round_vec):
         discarded[p_ind,r]=(1-sumilation_count/shots)
         fail_rate[p_ind,r]=(1-success / sumilation_count)
 
-  np.savez('Tele_Z_Rounds_length2.npz', discarded=discarded, fail_rate=fail_rate, p_vec=p_vec, round_vec=round_vec)
+  # np.savez('Tele_Z_Rounds_length2.npz', discarded=discarded, fail_rate=fail_rate, p_vec=p_vec, round_vec=round_vec)
 ##
 
 fig, ax = plt.subplots(2,1)
