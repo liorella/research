@@ -90,6 +90,11 @@ class BaseSurface(abc.ABC):
                                5: set()}  # 0= X stabilizer, 1= Z stabilizer, 2=X_left Z_right, 3=Z_left X_right, 4=Z_top X_bottom, 5=X_top Z_bottom
         self.even_tiles_order = TileOrder.order_z
         self.round = 0
+        self.to_surgery_data_qubits = {'R': np.zeros((height,), dtype=int),
+                                    'L': np.zeros((height,), dtype=int),
+                                    'T': np.zeros((width,), dtype=int),
+                                    'B': np.zeros((width,), dtype=int)}
+
     @abc.abstractmethod
     def allocate_qubits(self, coord):
         pass
@@ -178,8 +183,6 @@ class Surface(BaseSurface):
         self.dist = dist
         self.orientation = SurfaceOrientation.X_VERTICAL_Z_HORIZONTAL
         self.initial_state = initialState.Z_PLUS
-        self.to_surgery_data_qubits = {'R': np.zeros((dist,), dtype=int),
-                                       'T': np.zeros((dist,), dtype=int)}
 
     def flip_orientation(self):
         if self.orientation.value:
@@ -190,13 +193,15 @@ class Surface(BaseSurface):
         self.ancilla_groups[0] = self.ancilla_groups[1]
         self.ancilla_groups[1] = temp
 
-    def _allocate_surgery_data_qubits(self, name):
+    def _allocate_to_surgery_data_qubits(self, name):
         dist = self.dist
         for i in range(2 * dist):
             if i < dist:
                 self.to_surgery_data_qubits['R'][i % dist] = name
+                self.to_surgery_data_qubits['L'][i % dist] = name - 10000
             else:
                 self.to_surgery_data_qubits['T'][i % dist] = name
+                self.to_surgery_data_qubits['B'][i % dist] = name - 1000
             name += 1
         return name
 
@@ -227,7 +232,7 @@ class Surface(BaseSurface):
         name = coord[0] * 10000 + coord[1] * 1000
         name = self._allocate_data_qubits(name)
         name = self._allocate_ancillas(name)
-        name = self._allocate_surgery_data_qubits(name)
+        name = self._allocate_to_surgery_data_qubits(name)
 
     def add_measurement_detectors(self, circ: stim.Circuit, basis: MeasurementBasis, measurements: list):
         stabilizer_group = 0 if basis == MeasurementBasis.X_BASIS else 1
@@ -252,6 +257,26 @@ class Surface(BaseSurface):
                 circ.append("DETECTOR",
                             [stim.target_rec(ancilla_loc), stim.target_rec(data_loc[0]), stim.target_rec(data_loc[1]),
                              stim.target_rec(data_loc[2]), stim.target_rec(data_loc[3])])
+
+    def add_detectors_after_surgery(self, circ: stim.Circuit, measurements: list):
+        if self.round == 0 or self.round == -1:
+            unique_ancillas = self.ancilla_qubits[-(self.round + 1), (2 + self.round):-1:2]
+        else:
+            unique_ancillas = self.ancilla_qubits[(4 + self.round):-1:2, self.round + 2]
+        regular_ancillas=self._all_active_ancillas()-set(unique_ancillas)
+        for ancilla in regular_ancillas:
+            occ = np.where(np.array(measurements) == ancilla)[0] - len(measurements)
+            circ.append("DETECTOR", [stim.target_rec(occ[-1]), stim.target_rec(occ[-2])])
+        edge=['R','L','B','T'][-self.round]
+        for ancilla in unique_ancillas:
+            ancilla_loc = np.where(np.array(measurements) == ancilla)[0] - len(measurements)
+            ancilla_indx=np.where(self.ancilla_qubits==ancilla)
+            data0 = self.to_surgery_data_qubits[edge][ancilla_indx[1-(-self.round)//2] - 1]
+            data1 = self.to_surgery_data_qubits[edge][ancilla_indx[1-(-self.round)//2]]
+            surgery_data0_loc=np.where(np.array(measurements) == data0)[0] - len(measurements)
+            surgery_data1_loc = np.where(np.array(measurements) == data1)[0] - len(measurements)
+            circ.append("DETECTOR", [stim.target_rec(ancilla_loc[-1]), stim.target_rec(ancilla_loc[-2]), stim.target_rec(surgery_data0_loc[-1]), stim.target_rec(surgery_data1_loc[-1])])
+        self.round = 1
 
     def add_observable(self, circ: stim.Circuit, basis: MeasurementBasis, observable_index: int):
         observable_qubits = []
@@ -303,8 +328,10 @@ class Surface(BaseSurface):
     def add_detectors(self, circ, measurements: list):
         if self.round == 1:
             self.add_surface_initialization_detectors(circ, measurements)
-        else:
+        elif self.round > 1:
             self.add_detectors_for_all_ancillas(circ, measurements)
+        else:
+            self.add_detectors_after_surgery(circ, measurements)
 
     def print_surface_name(self):
         print(self.data_qubits)
@@ -380,9 +407,32 @@ class LatticeSurgery(BaseSurface):
                 self.ancilla_groups[1 - target_group + 4].update(
                     self.surface2.ancilla_qubits[2:-1:2, 0])
 
+    def _allocate_to_surgery_data_qubits(self):
+        if self.orientation == SurgeryOrientation.HORIZONTAL:
+            self.to_surgery_data_qubits['L'] = self.surface1.to_surgery_data_qubits['L']
+            self.to_surgery_data_qubits['R'] = self.surface2.to_surgery_data_qubits['R']
+            self.to_surgery_data_qubits['T'][0:self.surface1.width] = self.surface1.to_surgery_data_qubits['T']
+            self.to_surgery_data_qubits['T'][self.surface1.width] = max(self.surface1.to_surgery_data_qubits['T'])+1
+            self.to_surgery_data_qubits['T'][self.surface1.width+1:self.surface1.width+self.surface2.width+1] = self.surface2.to_surgery_data_qubits['T']
+            self.to_surgery_data_qubits['B'][0:self.surface1.width] = self.surface1.to_surgery_data_qubits['B']
+            self.to_surgery_data_qubits['B'][self.surface1.width] = max(self.surface1.to_surgery_data_qubits['T'])+1 - 1000
+            self.to_surgery_data_qubits['B'][self.surface1.width+1:self.surface1.width+self.surface2.width+1] = self.surface2.to_surgery_data_qubits['B']
+        else:
+            self.to_surgery_data_qubits['B'] = self.surface1.to_surgery_data_qubits['B']
+            self.to_surgery_data_qubits['T'] = self.surface2.to_surgery_data_qubits['T']
+            self.to_surgery_data_qubits['R'][0:self.surface1.height] = self.surface1.to_surgery_data_qubits['R']
+            self.to_surgery_data_qubits['R'][self.surface1.height] = max(self.surface1.to_surgery_data_qubits['T'])+1
+            self.to_surgery_data_qubits['R'][self.surface1.height+1:self.surface1.dist+self.surface2.height+1] = self.surface2.to_surgery_data_qubits['R']
+            self.to_surgery_data_qubits['L'][0:self.surface1.height] = self.surface1.to_surgery_data_qubits['L']
+            self.to_surgery_data_qubits['L'][self.surface1.height] = max(self.surface1.to_surgery_data_qubits['T'])+1 - 10000
+            self.to_surgery_data_qubits['L'][self.surface1.height+1:self.surface1.height+self.surface2.height+1] = self.surface2.to_surgery_data_qubits['L']
+
+
     def allocate_qubits(self, coord):
         self._allocate_data_qubits()
         self._allocate_ancillas()
+        self._allocate_to_surgery_data_qubits()
+
 
     def initialize_surgery_data(self, circ, error_model: BaseErrorModel):
         circ.append("R", self.surgery_data_qubits)
@@ -392,9 +442,9 @@ class LatticeSurgery(BaseSurface):
         dist=self.surface1.dist
         ancillas_for_detection=self._all_active_ancillas()
         if self.orientation == SurgeryOrientation.HORIZONTAL:
-            ancillas_for_detection -= set(self.ancilla_qubits[dist, 2::2]).union(set(self.ancilla_qubits[dist + 1, 1:-1:2]))
+            ancillas_for_detection -= set(self.ancilla_qubits[dist, 1::2]).union(set(self.ancilla_qubits[dist + 1, 0::2]))
         else:
-            ancillas_for_detection -= set(self.ancilla_qubits[1:2:-1, dist]).union(set(self.ancilla_qubits[2::2, dist + 1]))
+            ancillas_for_detection -= set(self.ancilla_qubits[0::2, dist]).union(set(self.ancilla_qubits[1::2, dist + 1]))
         for ancilla in ancillas_for_detection:
             occ = np.where(np.array(measurements) == ancilla)[0] - len(measurements)
             if len(occ) >= 2:
@@ -403,13 +453,6 @@ class LatticeSurgery(BaseSurface):
                 circ.append("DETECTOR", [stim.target_rec(occ[-1])])
 
     def surgery_measurement(self, circ, measurements, observable_index):
-        if ((self.orientation == SurgeryOrientation.VERTICAL) and (
-                self.surface1.orientation == SurfaceOrientation.X_VERTICAL_Z_HORIZONTAL)) \
-                or ((self.orientation == SurgeryOrientation.HORIZONTAL) and (
-                self.surface1.orientation == SurfaceOrientation.Z_VERTICAL_X_HORIZONTAL)): #ZZ surgery
-            circ.append("H", self.surgery_data_qubits)
-        circ.append("M", self.surgery_data_qubits)
-        measurements.extend(self.surgery_data_qubits)
         dist = self.surface1.dist
         observable_qubits = []
         surgery_ancillas = np.concatenate((self.ancilla_qubits[dist, 1::2], self.ancilla_qubits[dist + 1,
@@ -419,6 +462,14 @@ class LatticeSurgery(BaseSurface):
             observable_qubits.append(
                 stim.target_rec((np.where(np.array(measurements) == ancilla)[0] - len(measurements))[-1]))
         circ.append('OBSERVABLE_INCLUDE', observable_qubits, observable_index)
+
+        if ((self.orientation == SurgeryOrientation.VERTICAL) and (
+                self.surface1.orientation == SurfaceOrientation.X_VERTICAL_Z_HORIZONTAL)) \
+                or ((self.orientation == SurgeryOrientation.HORIZONTAL) and (
+                self.surface1.orientation == SurfaceOrientation.Z_VERTICAL_X_HORIZONTAL)): #ZZ surgery
+            circ.append("H", self.surgery_data_qubits)
+        circ.append("M", self.surgery_data_qubits)
+        measurements.extend(self.surgery_data_qubits)
 
     def add_detectors(self, circ, measurements: list):
         if self.round == 1:
@@ -464,6 +515,7 @@ class Experiment:
             self.activated_surfaces.append(surface)
 
 
+
     def __getitem__(self, coor):
         return self.surfaces[coor]
 
@@ -494,18 +546,25 @@ class Experiment:
     def measure_surgery(self,coord0: tuple, coord1: tuple):
         surgery = self.surgeries[(coord0, coord1)]
         surgery.surgery_measurement(self.circ, self.measurements, self.observables)
+        if surgery.orientation == SurgeryOrientation.HORIZONTAL:
+            surgery.surface1.round = -1 #right edge detectors should be modified in the next round
+            surgery.surface2.round = -2 #left edge detectors should be modified in the next round
+        else:
+            surgery.surface1.round = -3 #top edge detectors should be modified in the next round
+            surgery.surface2.round = -4 #bottom edge detectors should be modified in the next round
+
         self.observables += 1
         self.activate_surface(surgery.surface1)
         self.activate_surface(surgery.surface2)
 
 ##
-error_model = ErrorModel(single_qubit_error=0.01, two_qubit_error=0.01, measurement_error=0.05)
+error_model = ErrorModel(single_qubit_error=0.001, two_qubit_error=0.001, measurement_error=0.001)
 # error_model = NoErrorModel()
 d = 3
 ex = Experiment({
     (0, 0): Surface(d),
-    (1, 0): Surface(d)
-    # (0,1): Surface(d)
+    (1, 0): Surface(d),
+    (0,1): Surface(d)
 }, error_model)
 
 ##
@@ -513,14 +572,24 @@ ex = Experiment({
 
 ex.initialize_surface((0,0),initialState.X_PLUS)
 ex.initialize_surface((1,0),initialState.X_MINUS)
+ex.initialize_surface((0,1),initialState.Z_PLUS)
+
+ex.stabilizer_round()
+ex.stabilizer_round()
 ex.stabilizer_round()
 
 ex.initialize_surgery((0, 0), (1, 0))
 ex.stabilizer_round()
+ex.stabilizer_round()
+ex.stabilizer_round()
 ex.measure_surgery((0, 0), (1, 0))
+
+ex.stabilizer_round()
+ex.stabilizer_round()
 ex.stabilizer_round()
 ex.measure_surface((0, 0), MeasurementBasis.X_BASIS)
 ex.measure_surface((1, 0), MeasurementBasis.X_BASIS)
+ex.measure_surface((0, 1), MeasurementBasis.X_BASIS)
 # ex.measure_surface((0, 1), MeasurementBasis.X_BASIS, observable_index=3)
 
 # print(ex.circ)
