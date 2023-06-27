@@ -16,29 +16,31 @@ class TileOrder:
     order_z = ['NW', 'NE', 'SW', 'SE']
     order_ᴎ = ['NW', 'SW', 'NE', 'SE']
 
-
 class SurfaceOrientation(Enum):
     Z_VERTICAL_X_HORIZONTAL = 1
     X_VERTICAL_Z_HORIZONTAL = 0
 
-
-class initialState(Enum):
+class InitialState(Enum):
     Z_PLUS = 0
     X_PLUS = 1
     Z_MINUS = 2
     X_MINUS = 3
     Y_PLUS = 4
-
+    Y_MINUS = 5
 
 class MeasurementBasis(Enum):  # should be modified. depends on initial state
     Z_BASIS = 0
     X_BASIS = 1
 
-
 class SurgeryOrientation(Enum):
     VERTICAL = 0
     HORIZONTAL = 1
 
+class SurgeryOperation(Enum):
+    ZZ = 0
+    XZ = 1
+    ZX = 2
+    XX = 3
 
 class BaseErrorModel(abc.ABC):
     @abc.abstractmethod
@@ -114,33 +116,34 @@ class BaseSurface(abc.ABC):
             ret = ancilla_index[0], ancilla_index[1] - 1
         return None if ret[0] < 0 or ret[1] < 0 or ret[0] >= self.width or ret[1] >= self.height else ret
 
-    def _get_ancilla_with_targets(self, epoch,
-                                  stabilizer_group: int):  # gets direction of 2 qubit gate and which stabilizer_group (orientation independent), creates pair (source and target qubits)
-        ops = []
+    def _get_ancilla_with_targets_and_op(self, epoch, stabilizer_group: int):  # gets direction of 2 qubit gate and which stabilizer_group (orientation independent), creates pair (source and target qubits)
+        qubits = []
+        operation = []
         my_ancillas = self.ancilla_groups[stabilizer_group]
-        target_direction = self.even_tiles_order[epoch - 2]
+        direction = self.even_tiles_order[epoch - 2]
         for ancilla in my_ancillas:
             loc = np.where(self.ancilla_qubits == ancilla)
             if (loc[0][0] + loc[1][0]) % 2 and (epoch == 3 or epoch == 4):
-                target_direction = self.even_tiles_order[5 - epoch]
+                direction = self.even_tiles_order[5 - epoch]
             ancilla_coord = np.where(self.ancilla_qubits == ancilla)
-            target = self._get_target((ancilla_coord[0][0], ancilla_coord[1][0]), target_direction)
+            target = self._get_target((ancilla_coord[0][0], ancilla_coord[1][0]), direction)
             if target is not None:
-                ops += ancilla, self.data_qubits[target]
-        return ops
+                qubits += ancilla, self.data_qubits[target]
+            if stabilizer_group == 0 or (direction == 'NW' and (stabilizer_group == 2 or stabilizer_group == 5)) \
+                    or (direction == 'NE' and (stabilizer_group == 3 or stabilizer_group == 5)) \
+                    or (direction == 'SE' and (stabilizer_group == 3 or stabilizer_group == 4)) \
+                    or (direction == 'SW' and (stabilizer_group == 2 or stabilizer_group == 4)):
+                operation = "CX"
+            else:
+                operation = "CZ"
+        return qubits, operation
 
     def _apply_two_qubit_gate_epoch(self, circ, epoch, error_model: BaseErrorModel):
         for ancilla_group in range(6):  # 2=X_left Z_right, 3=Z_left X_right, 4=Z_top X_bottom, 5=X_top Z_bottom
-            op = self._get_ancilla_with_targets(epoch, ancilla_group)
-            if len(op):
-                if ancilla_group == 0:  # or (direction == 'NW' and (ancilla_group == 2 or ancilla_group == 5)) \
-                    # or (direction == 'NE' and (ancilla_group == 3 or ancilla_group == 5))\
-                    # or (direction == 'SE' and (ancilla_group == 3 or ancilla_group == 4))\
-                    # or (direction == 'SW' and (ancilla_group == 2 or ancilla_group == 4)):
-                    circ.append("CX", op)
-                else:
-                    circ.append("CZ", op)
-                error_model.generate_two_qubit_error(circ, op)
+            [qubits, operation] = self._get_ancilla_with_targets_and_op(epoch, ancilla_group)
+            if len(qubits):
+                circ.append(operation, qubits)
+                error_model.generate_two_qubit_error(circ, qubits)
 
     def stabilizer_round(self, circ, epoch: int, measurements: list, error_model: BaseErrorModel):
         ancillas = self._all_active_ancillas()
@@ -182,7 +185,7 @@ class Surface(BaseSurface):
         super().__init__(dist, dist)
         self.dist = dist
         self.orientation = SurfaceOrientation.X_VERTICAL_Z_HORIZONTAL
-        self.initial_state = initialState.Z_PLUS
+        self.initial_state = InitialState.Z_PLUS
 
     def flip_orientation(self):
         if self.orientation.value:
@@ -238,7 +241,7 @@ class Surface(BaseSurface):
         stabilizer_group = 0 if basis == MeasurementBasis.X_BASIS else 1
         ancilla_target_list = []
         for epoch in [2, 3, 4, 5]:
-            ancilla_target_list += self._get_ancilla_with_targets(epoch, stabilizer_group)
+            ancilla_target_list += self._get_ancilla_with_targets_and_op(epoch, stabilizer_group)[0]
         ancila_target_list = list(set(ancilla_target_list))
         ancillas = sorted(i for i in ancila_target_list if i > self.data_qubits[-1][-1])
         for ancilla in ancillas:
@@ -271,8 +274,9 @@ class Surface(BaseSurface):
         for ancilla in unique_ancillas:
             ancilla_loc = np.where(np.array(measurements) == ancilla)[0] - len(measurements)
             ancilla_indx=np.where(self.ancilla_qubits==ancilla)
-            data0 = self.to_surgery_data_qubits[edge][ancilla_indx[1-(-self.round)//2] - 1]
-            data1 = self.to_surgery_data_qubits[edge][ancilla_indx[1-(-self.round)//2]]
+            data0 = self.to_surgery_data_qubits[edge][ancilla_indx[1 - (-self.round) // 2] - 1]
+            data1 = self.to_surgery_data_qubits[edge][ancilla_indx[1 - (-self.round) // 2]]
+
             surgery_data0_loc=np.where(np.array(measurements) == data0)[0] - len(measurements)
             surgery_data1_loc = np.where(np.array(measurements) == data1)[0] - len(measurements)
             circ.append("DETECTOR", [stim.target_rec(ancilla_loc[-1]), stim.target_rec(ancilla_loc[-2]), stim.target_rec(surgery_data0_loc[-1]), stim.target_rec(surgery_data1_loc[-1])])
@@ -301,25 +305,25 @@ class Surface(BaseSurface):
         self.add_measurement_detectors(circ, basis, measurements) #need to be general
         self.add_observable(circ, basis, observable_index)
 
-    def initialize_surface(self, circ, state: initialState, error_model: BaseErrorModel):
+    def initialize_surface(self, circ, state: InitialState, error_model: BaseErrorModel):
         data_qubits = self.data_qubits.flatten()
         circ.append("R", data_qubits)
-        if state == initialState.Z_MINUS:
+        if state == InitialState.Z_MINUS:
             circ.append("X", data_qubits)
-            self.initial_state = initialState.Z_MINUS
-        elif state == initialState.X_PLUS:
+            self.initial_state = InitialState.Z_MINUS
+        elif state == InitialState.X_PLUS:
             circ.append("H", data_qubits)
-            self.initial_state = initialState.X_PLUS
-        elif state == initialState.X_MINUS:
+            self.initial_state = InitialState.X_PLUS
+        elif state == InitialState.X_MINUS:
             circ.append("X", data_qubits)
             circ.append("H", data_qubits)
-            self.initial_state = initialState.X_MINUS
+            self.initial_state = InitialState.X_MINUS
         error_model.generate_single_qubit_error(circ, data_qubits)
 
     def add_surface_initialization_detectors(self, circ, measurements: list):
-        if self.initial_state == initialState.Z_PLUS or self.initial_state == initialState.Z_MINUS:
+        if self.initial_state == InitialState.Z_PLUS or self.initial_state == InitialState.Z_MINUS:
             ancillas_for_detectors = self.ancilla_groups[1]
-        elif self.initial_state == initialState.X_PLUS or self.initial_state == initialState.X_MINUS:
+        elif self.initial_state == InitialState.X_PLUS or self.initial_state == InitialState.X_MINUS:
             ancillas_for_detectors = self.ancilla_groups[0]
         for ancilla in ancillas_for_detectors:
             occ = np.where(np.array(measurements) == ancilla)[0] - len(measurements)
@@ -351,6 +355,9 @@ class LatticeSurgery(BaseSurface):
         self.surgery_data_qubits = surface1.to_surgery_data_qubits[
             'T'] if surgery_orientation == SurgeryOrientation.VERTICAL else surface1.to_surgery_data_qubits['R']
 
+    def _surgery_operation(self):
+        return SurgeryOperation((self.surface1.orientation.value + self.surface2.orientation.value*2)*(1-self.orientation.value)+self.orientation.value*((1-self.surface1.orientation.value) + (1-self.surface2.orientation.value)*2))
+
     def _allocate_data_qubits(self):
         dist = self.surface1.dist
         self.data_qubits[0:dist, 0:dist] = self.surface1.data_qubits
@@ -362,50 +369,30 @@ class LatticeSurgery(BaseSurface):
             self.data_qubits[0:dist, dist] = self.surgery_data_qubits
 
     def _allocate_ancillas(self):
-        dist = self.surface1.dist
-        self.ancilla_qubits[0:dist + 1, 0:dist + 1] = self.surface1.ancilla_qubits
-        if self.orientation == SurgeryOrientation.HORIZONTAL:
-            self.ancilla_qubits[dist + 1:, 0:dist + 1] = self.surface2.ancilla_qubits
-        elif self.orientation == SurgeryOrientation.VERTICAL:
-            self.ancilla_qubits[0:dist + 1, dist + 1:] = self.surface2.ancilla_qubits
         self.ancilla_groups[0] = self.surface1.ancilla_groups[0].union(self.surface2.ancilla_groups[0])
         self.ancilla_groups[1] = self.surface1.ancilla_groups[1].union(self.surface2.ancilla_groups[1])
+        dist = self.surface1.dist
+        self.ancilla_qubits[0:dist + 1, 0:dist + 1] = self.surface1.ancilla_qubits
+        op_val=self._surgery_operation().value
+        if self.orientation == SurgeryOrientation.HORIZONTAL:
+            self.ancilla_qubits[dist + 1:, 0:dist + 1] = self.surface2.ancilla_qubits
+            self.ancilla_groups[self.surface1.orientation.value].update(self.surface1.ancilla_qubits[-1, 1::2])
+            if not (op_val % 3):
+                self.ancilla_groups[self.surface2.orientation.value].update(self.surface2.ancilla_qubits[0, 0::2])
+            else:
+                self.ancilla_groups[1 + op_val].update(self.surface2.ancilla_qubits[0, 0::2])
+                self.ancilla_groups[4 - op_val].update(self.surface2.ancilla_qubits[0, 1:-1:2])
+                self.ancilla_groups[1-self.surface2.orientation.value] -= set(self.surface2.ancilla_qubits[0, 1::2])
+        elif self.orientation == SurgeryOrientation.VERTICAL:
+            self.ancilla_qubits[0:dist + 1, dist + 1:] = self.surface2.ancilla_qubits
+            self.ancilla_groups[1-self.surface1.orientation.value].update(self.surface1.ancilla_qubits[0::2, -1])
+            if not (op_val % 3):
+                self.ancilla_groups[1-self.surface2.orientation.value].update(self.surface2.ancilla_qubits[1::2, 0])
+            else:
+                self.ancilla_groups[3 + op_val].update(self.surface2.ancilla_qubits[1::2, 0])
+                self.ancilla_groups[6 - op_val].update(self.surface2.ancilla_qubits[2::2, 0])
+                self.ancilla_groups[self.surface2.orientation.value] -= set(self.surface2.ancilla_qubits[2::2, 0])
 
-        if self.surface1.orientation == self.surface2.orientation:
-            if self.orientation == SurgeryOrientation.HORIZONTAL:
-                target_group = 1 if self.surface1.orientation == SurfaceOrientation.Z_VERTICAL_X_HORIZONTAL else 0
-                self.ancilla_groups[target_group].update(
-                    self.surface1.ancilla_qubits[-1, 1::2])
-                self.ancilla_groups[target_group].update(
-                    self.surface2.ancilla_qubits[0, 0::2])
-            elif self.orientation == SurgeryOrientation.VERTICAL:
-                target_group = 0 if self.surface1.orientation == SurfaceOrientation.Z_VERTICAL_X_HORIZONTAL else 1
-                self.ancilla_groups[target_group].update(
-                    self.surface1.ancilla_qubits[0::2, -1])
-                self.ancilla_groups[target_group].update(
-                    self.surface2.ancilla_qubits[1::2, 0])
-        else:
-            if self.orientation == SurgeryOrientation.HORIZONTAL:
-                self.ancilla_groups[0] -= set(self.surface2.ancilla_qubits[0, :])
-                self.ancilla_groups[1] -= set(self.surface2.ancilla_qubits[0, :])
-                # 2=X_left Z_right, 3=Z_left X_right, 4=Z_top X_bottom, 5=X_top Z_bottom
-                target_group = 1 if self.surface1.orientation == SurfaceOrientation.Z_VERTICAL_X_HORIZONTAL else 0
-                self.ancilla_groups[target_group].update(
-                    self.surface1.ancilla_qubits[-1, 1::2])
-                self.ancilla_groups[target_group + 2].update(
-                    self.surface2.ancilla_qubits[0, 0::2])
-                self.ancilla_groups[1 - target_group + 2].update(
-                    self.surface2.ancilla_qubits[0, 1:-1:2])
-            elif self.orientation == SurgeryOrientation.VERTICAL:
-                self.ancilla_groups[0] -= set(self.surface2.ancilla_qubits[:, 0])
-                self.ancilla_groups[1] -= set(self.surface2.ancilla_qubits[:, 0])
-                target_group = 0 if self.surface1.orientation == SurfaceOrientation.Z_VERTICAL_X_HORIZONTAL else 1
-                self.ancilla_groups[target_group].update(
-                    self.surface1.ancilla_qubits[0::2, -1])
-                self.ancilla_groups[target_group + 4].update(
-                    self.surface2.ancilla_qubits[1::2, 0])
-                self.ancilla_groups[1 - target_group + 4].update(
-                    self.surface2.ancilla_qubits[2:-1:2, 0])
 
     def _allocate_to_surgery_data_qubits(self):
         if self.orientation == SurgeryOrientation.HORIZONTAL:
@@ -436,6 +423,8 @@ class LatticeSurgery(BaseSurface):
 
     def initialize_surgery_data(self, circ, error_model: BaseErrorModel):
         circ.append("R", self.surgery_data_qubits)
+        if not (self._surgery_operation().value % 2):
+            circ.append("H", self.surgery_data_qubits)
         error_model.generate_single_qubit_error(circ, self.surgery_data_qubits)
 
     def add_surgery_initialization_detectors(self, circ, measurements: list):
@@ -447,10 +436,7 @@ class LatticeSurgery(BaseSurface):
             ancillas_for_detection -= set(self.ancilla_qubits[0::2, dist]).union(set(self.ancilla_qubits[1::2, dist + 1]))
         for ancilla in ancillas_for_detection:
             occ = np.where(np.array(measurements) == ancilla)[0] - len(measurements)
-            if len(occ) >= 2:
-                circ.append("DETECTOR", [stim.target_rec(occ[-1]), stim.target_rec(occ[-2])])
-            else:
-                circ.append("DETECTOR", [stim.target_rec(occ[-1])])
+            circ.append("DETECTOR", [stim.target_rec(occ[-1]), stim.target_rec(occ[-2])])
 
     def surgery_measurement(self, circ, measurements, observable_index):
         dist = self.surface1.dist
@@ -462,11 +448,7 @@ class LatticeSurgery(BaseSurface):
             observable_qubits.append(
                 stim.target_rec((np.where(np.array(measurements) == ancilla)[0] - len(measurements))[-1]))
         circ.append('OBSERVABLE_INCLUDE', observable_qubits, observable_index)
-
-        if ((self.orientation == SurgeryOrientation.VERTICAL) and (
-                self.surface1.orientation == SurfaceOrientation.X_VERTICAL_Z_HORIZONTAL)) \
-                or ((self.orientation == SurgeryOrientation.HORIZONTAL) and (
-                self.surface1.orientation == SurfaceOrientation.Z_VERTICAL_X_HORIZONTAL)): #ZZ surgery
+        if not (self._surgery_operation().value % 2):
             circ.append("H", self.surgery_data_qubits)
         circ.append("M", self.surgery_data_qubits)
         measurements.extend(self.surgery_data_qubits)
@@ -501,7 +483,6 @@ class Experiment:
         if other_coord not in self.surfaces:
             return
         surgery = LatticeSurgery(surface, self.surfaces[other_coord], orientation)
-        surgery.allocate_qubits(coordinate)
         self.surgeries[coordinate, other_coord] = surgery
 
     def activate_surface(self, surface: BaseSurface):
@@ -515,7 +496,6 @@ class Experiment:
             self.activated_surfaces.append(surface)
 
 
-
     def __getitem__(self, coor):
         return self.surfaces[coor]
 
@@ -526,7 +506,7 @@ class Experiment:
         self.surfaces[coor].surface_measurement(self.circ, basis, self.error_model, self.measurements, self.observables)
         self.observables += 1
 
-    def initialize_surface(self, coor: tuple, state: initialState):
+    def initialize_surface(self, coor: tuple, state: InitialState):
         self.activate_surface(self.surfaces[coor])
         self.surfaces[coor].initialize_surface(self.circ, state, self.error_model)
 
@@ -540,6 +520,7 @@ class Experiment:
 
     def initialize_surgery(self, coord0: tuple, coord1: tuple):
         surgery = self.surgeries[(coord0, coord1)]
+        surgery.allocate_qubits(coord0)
         self.activate_surface(surgery)
         surgery.initialize_surgery_data(self.circ, self.error_model)
 
@@ -550,58 +531,54 @@ class Experiment:
             surgery.surface1.round = -1 #right edge detectors should be modified in the next round
             surgery.surface2.round = -2 #left edge detectors should be modified in the next round
         else:
-            surgery.surface1.round = -3 #top edge detectors should be modified in the next round
-            surgery.surface2.round = -4 #bottom edge detectors should be modified in the next round
+            surgery.surface1.round = -4 #top edge detectors should be modified in the next round
+            surgery.surface2.round = -3 #bottom edge detectors should be modified in the next round
 
         self.observables += 1
         self.activate_surface(surgery.surface1)
         self.activate_surface(surgery.surface2)
 
 ##
-error_model = ErrorModel(single_qubit_error=0.001, two_qubit_error=0.001, measurement_error=0.001)
-# error_model = NoErrorModel()
+#error_model = ErrorModel(single_qubit_error=0.001, two_qubit_error=0.005, measurement_error=0.005)
+error_model = NoErrorModel()
 d = 3
 ex = Experiment({
     (0, 0): Surface(d),
-    (1, 0): Surface(d),
-    (0,1): Surface(d)
+    (1,0): Surface(d)
 }, error_model)
+ex.flip_surface_orientation((1,0))
+ex.initialize_surface((0,0),InitialState.X_PLUS)
+ex.initialize_surface((1,0),InitialState.Z_PLUS)
 
-##
-# ex[0, 0].flip_orientation()
-
-ex.initialize_surface((0,0),initialState.X_PLUS)
-ex.initialize_surface((1,0),initialState.X_MINUS)
-ex.initialize_surface((0,1),initialState.Z_PLUS)
-
-ex.stabilizer_round()
 ex.stabilizer_round()
 ex.stabilizer_round()
 
 ex.initialize_surgery((0, 0), (1, 0))
 ex.stabilizer_round()
 ex.stabilizer_round()
-ex.stabilizer_round()
+
 ex.measure_surgery((0, 0), (1, 0))
+ex.stabilizer_round()
+ex.stabilizer_round()
 
-ex.stabilizer_round()
-ex.stabilizer_round()
-ex.stabilizer_round()
 ex.measure_surface((0, 0), MeasurementBasis.X_BASIS)
-ex.measure_surface((1, 0), MeasurementBasis.X_BASIS)
-ex.measure_surface((0, 1), MeasurementBasis.X_BASIS)
-# ex.measure_surface((0, 1), MeasurementBasis.X_BASIS, observable_index=3)
+ex.measure_surface((1, 0), MeasurementBasis.Z_BASIS)
 
-# print(ex.circ)
-# ex.circ.diagram()
+
 
 ##
 model = ex.circ.detector_error_model(decompose_errors=True)
 matching = pymatching.Matching.from_detector_error_model(model)
-
+num_shots=10000
 sampler = ex.circ.compile_detector_sampler()
-syndrome, actual_observables = sampler.sample(shots=10000, separate_observables=True)
-print(sum(actual_observables))
+syndrome, actual_observables = sampler.sample(shots=num_shots, separate_observables=True)
+predicted_observables = matching.decode_batch(syndrome)
+num_errors= sum(predicted_observables != actual_observables)
+print(num_errors)
+
+print(np.sum(actual_observables, 0))
+print(np.sum(predicted_observables, 0))
+
 ##
 E = matching.edges()  # edges and wieghts
 G = matching.to_networkx()  # the documentation for networkX graph can be used
@@ -622,5 +599,138 @@ ax.margins(0)
 plt.axis("off")
 plt.show()
 
+## simulations
+
+#error_model = ErrorModel(single_qubit_error=0.001, two_qubit_error=0.005, measurement_error=0.005)
+error_model = NoErrorModel()
+d_vec = range(3,4,2)
+surgery_rounds=range(1,2,1)
+num_shots = 10000
+errors=np.zeros([len(d_vec),len(surgery_rounds),4])
+for j,d in enumerate(d_vec):
+    for rounds in surgery_rounds:
+        ex = Experiment({
+            (0, 0): Surface(d),
+            (1, 0): Surface(d),
+            (0, 1): Surface(d)
+        }, error_model)
+
+        ex.initialize_surface((0,0),InitialState.X_PLUS)
+        ex.initialize_surface((1,0),InitialState.X_MINUS)
+        ex.initialize_surface((0,1),InitialState.Z_PLUS)
+        for i in range(d):
+            ex.stabilizer_round()
+        ex.initialize_surgery((0, 0), (1, 0))
+        for i in range(rounds):
+            ex.stabilizer_round()
+        ex.measure_surgery((0, 0), (1, 0))
+        for i in range(d):
+            ex.stabilizer_round()
+        ex.measure_surface((0, 0), MeasurementBasis.X_BASIS)
+        ex.measure_surface((1, 0), MeasurementBasis.X_BASIS)
+        ex.measure_surface((0, 1), MeasurementBasis.Z_BASIS)
+
+        model = ex.circ.detector_error_model(decompose_errors=True)
+        matching = pymatching.Matching.from_detector_error_model(model)
+        sampler = ex.circ.compile_detector_sampler()
+        syndrome, actual_observables = sampler.sample(shots=num_shots, separate_observables=True)
+
+
+        predicted_observables = matching.decode_batch(syndrome)
+        errors[j,rounds-1,:]= sum(predicted_observables != actual_observables)
+
+print(errors)
 ##
-# ex.flip_surface_orientation((0,0))
+fig, axs = plt.subplots(2, 2, sharex=True, sharey=True)
+labels = ["surgery", "q0", "q1", "q2"]
+
+for j,ax in enumerate(axs.flat):
+    for i in range(errors.shape[2]):
+        ax.scatter(surgery_rounds, errors[j,:,i]/num_shots, label=labels[i], marker='o')
+    ax.set_title(f'distance = {d_vec[j]}')
+axs[-1,0].set_xlabel('surgery rounds')
+axs[-1,-1].set_xlabel('surgery rounds')
+axs[-1,0].set_ylabel('error probability')
+axs[0,0].set_ylabel('error probability')
+
+
+axs[0,0].legend()  # Adjust the location and number of columns
+
+# Adjust the layout to prevent overlapping labels
+plt.tight_layout()
+
+# Display the plot
+plt.show()
+##
+
+fig, ax = plt.subplots()
+
+for j,d in enumerate(d_vec):
+    ax.scatter(surgery_rounds, errors[j,:,0]/num_shots, label=f'distance = {d}', marker='o')
+    ax.set_xlabel('surgery rounds')
+    ax.set_ylabel('error probability')
+plt.legend()
+plt.show()
+
+## simulations for post-surgery rounds
+error_model = ErrorModel(single_qubit_error=0.001, two_qubit_error=0.005, measurement_error=0.005)
+# error_model = NoErrorModel()
+d_vec = range(3,11,2)
+post_surgery_rounds=range(1,10,1)
+num_shots = 10000
+post_surgery_errors=np.zeros([len(d_vec),len(post_surgery_rounds),4])
+for j,d in enumerate(d_vec):
+    for rounds in post_surgery_rounds:
+        ex = Experiment({
+            (0, 0): Surface(d),
+            (1, 0): Surface(d),
+            (0,1): Surface(d)
+        }, error_model)
+
+        ex.initialize_surface((0,0),InitialState.X_PLUS)
+        ex.initialize_surface((1,0),InitialState.X_MINUS)
+        ex.initialize_surface((0,1),InitialState.Z_PLUS)
+        for i in range(d):
+            ex.stabilizer_round()
+        ex.initialize_surgery((0, 0), (1, 0))
+        for i in range(d):
+            ex.stabilizer_round()
+        ex.measure_surgery((0, 0), (1, 0))
+        for i in range(rounds):
+            ex.stabilizer_round()
+        ex.measure_surface((0, 0), MeasurementBasis.X_BASIS)
+        ex.measure_surface((1, 0), MeasurementBasis.X_BASIS)
+        ex.measure_surface((0, 1), MeasurementBasis.Z_BASIS)
+
+        model = ex.circ.detector_error_model(decompose_errors=True)
+        matching = pymatching.Matching.from_detector_error_model(model)
+        sampler = ex.circ.compile_detector_sampler()
+        syndrome, actual_observables = sampler.sample(shots=num_shots, separate_observables=True)
+        predicted_observables = matching.decode_batch(syndrome)
+        post_surgery_errors[j,rounds-1,:]= sum(predicted_observables != actual_observables)
+
+##
+fig, axs = plt.subplots(2, 2, sharex=True, sharey=True)
+labels = ["surgery", "q0", "q1", "q2"]
+
+for j,ax in enumerate(axs.flat):
+    for i in range(post_surgery_errors.shape[2]):
+        ax.scatter(post_surgery_rounds, post_surgery_errors[j,:,i]/num_shots, label=labels[i], marker='o')
+    ax.set_title(f'distance = {d_vec[j]}')
+axs[-1,0].set_xlabel('post surgery rounds')
+axs[-1,-1].set_xlabel('post surgery rounds')
+axs[-1,0].set_ylabel('error probability')
+axs[0,0].set_ylabel('error probability')
+axs[0,0].legend()
+plt.tight_layout() # Adjust the layout to prevent overlapping labels
+plt.show() # Display the plot
+##
+
+fig, ax = plt.subplots()
+
+for j,d in enumerate(d_vec):
+    ax.scatter(post_surgery_rounds, post_surgery_errors[j,:,0]/num_shots, label=f'distance = {d}', marker='o')
+    ax.set_xlabel('post surgery rounds')
+    ax.set_ylabel('error probability')
+plt.legend()
+plt.show()
