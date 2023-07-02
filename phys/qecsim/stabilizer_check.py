@@ -209,3 +209,6 @@ tableau = stim.Tableau(3)
 cnot = stim.Tableau.from_named_gate("CNOT")
 H = stim.Tableau.from_named_gate("H")
 circuit2 = tableau.to_circuit(method="elimination")
+
+
+##

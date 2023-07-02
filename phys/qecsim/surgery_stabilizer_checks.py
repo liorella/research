@@ -264,7 +264,7 @@ circuit4 = stim.Circuit('''
     H 25
     CX 25 24
     H 26
-    CX 26 25 26 29 25 30 
+    CX 26 25 26 29 26 30 
     H 27 28
     CX 27 28 27 29 27 31 29 28 28 29 29 28 28 32 30 29 29 30 30 29 29 32 31 30 30 31 31 30 31 32
 
@@ -272,7 +272,7 @@ circuit4 = stim.Circuit('''
 tableau4 = stim.Tableau.from_circuit(circuit4)
 print(repr(tableau4))
 
-## first round of surgery
+## surgery
 circuit5 = stim.Circuit('''
     CX 0 5
     H 1
@@ -287,9 +287,10 @@ circuit5 = stim.Circuit('''
     H 25
     CX 25 24
     H 26
-    CX 26 25 26 29 25 30 
+    CX 26 25 26 29 26 30 
     H 27 28
     CX 27 28 27 29 27 31 29 28 28 29 29 28 28 32 30 29 29 30 30 29 29 32 31 30 30 31 31 30 31 32
+
     
 
     H 9 10 11 12 33 34 35 36    
@@ -317,35 +318,10 @@ circuit5 = stim.Circuit('''
 ''')
 tableau5 = stim.Tableau.from_circuit(circuit5)
 print(repr(tableau5))
-## taking all stabilizers after one surgery round into a circuit
-tableau6 = stim.Tableau.from_stabilizers([
-    stim.PauliString("+XXX__________________"),
-    stim.PauliString("+ZZ___________________"),
-    stim.PauliString("+_ZZ_ZZ_______________"),
-    stim.PauliString("+___ZZ_ZZ_____________"),
-    stim.PauliString("+_______ZZ_ZZ_________"),
-    stim.PauliString("+XX_XX________________"),
-    stim.PauliString("+__X__X_______________"),
-    stim.PauliString("+___X__X______________"),
-    stim.PauliString("+____XX_XX____________"),
-    stim.PauliString("+____________XXX______"),
-    stim.PauliString("+_________ZZ_ZZ_______"),
-    stim.PauliString("+_____________ZZ_ZZ___"),
-    stim.PauliString("+_______________ZZ_ZZ_"),
-    stim.PauliString("+___________________ZZ"),
-    stim.PauliString("+____________XX_XX____"),
-    stim.PauliString("+______________X__X___"),
-    stim.PauliString("+_______________X__X__"),
-    stim.PauliString("+________________XX_XX"),
-    stim.PauliString("+_________XXX_________"),
-    stim.PauliString("+__________XX_XX______"),
-    stim.PauliString("+______XX_XX__________"),
-])
+## XZ Surgery
 
-circuit6 = tableau6.to_circuit(method="elimination")
-
-## checking what happens with the surgery data qubits
-circuit7 = stim.Circuit('''
+## two independent surfaces
+circuit4 = stim.Circuit('''
     H 0
     CX 0 1
     H 5
@@ -353,25 +329,42 @@ circuit7 = stim.Circuit('''
     H 6
     CX 6 2
     H 7
-    CX 4 3 5 3 7 3 10 3 11 3 5 4 4 5 5 4
+    CX 4 3 5 3 7 3 5 4 4 5 5 4
     H 8
-    CX 8 4 6 5 5 6 6 5 8 5 7 6 6 7 7 6
-    H 20
-    CX 20 6 8 7 10 7 11 7 20 7 20 9 9 20 20 9 9 10
-    H 18
-    CX 18 9
-    H 19
-    CX 11 10 18 10 19 10 18 11 11 18 18 11 19 11 20 12 12 20 20 12
-    H 12
-    CX 12 19
-    H 14
-    CX 14 12 18 13 13 18 18 13 14 13 19 13 19 14 14 19 19 14
-    H 15
-    CX 15 14 20 15 15 20 20 15
-    H 16
-    CX 16 15 18 15 19 15 19 16 16 19 19 16
-    H 17
-    CX 17 16 20 17 17 20 20 17 20 17 19 18 18 19 19 18 20 19
+    CX 8 4 6 5 5 6 6 5 8 5 7 6 6 7 7 6 8 7
+
+    CX 24 29
+    H 25
+    CX 25 24
+    H 26
+    CX 26 25 26 29 26 30 
+    H 27 28
+    CX 27 28 27 29 27 31 29 28 28 29 29 28 28 32 30 29 29 30 30 29 29 32 31 30 30 31 31 30 31 32
+
+   
+    H 13 14 15 16 20 21 22 23 33 34 35 36    
+    
+    CX 0 9 13 3 6 11 4 10 16 7 14 5 
+    CX 33 24 27 37 35 30 34 28 31 40 29 38 
+    CZ 23 25
+    CX 20 17 18 12 21 19 
+   
+    CX 1 9 13 0 7 11 5 10 16 4 14 2
+    CX 33 25 34 29 35 31 24 37 26 38 28 40
+    CX 20 6 19 12 21 8 23 18 
+
+    CX 15 6 13 4 3 11 1 10 16 8 7 12
+    CX 30 39 28 37 32 40 34 25 35 27 36 31
+    CZ 22 24 23 26 17 33
+    CX 20 18 
+
+    CX 15 3 13 1 4 11 2 10 16 5 8 12
+    CX 27 39 35 28 29 40 36 32 34 26 25 37
+    CX 20 7 22 17 23 19
+    CZ 18 33
+    
+    H 13 14 15 16 20 21 22 23 33 34 35 36
+
 ''')
-tableau7 = stim.Tableau.from_circuit(circuit7)
-print(repr(tableau7))
+tableau4 = stim.Tableau.from_circuit(circuit4)
+print(repr(tableau4))
