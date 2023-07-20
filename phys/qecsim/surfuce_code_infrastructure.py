@@ -648,7 +648,7 @@ class Experiment:
 ##
 
 # error_model = ErrorModel(single_qubit_error=0.001, two_qubit_error=0.005, measurement_error=0.005)
- error_model = NoErrorModel()
+error_model = NoErrorModel()
 d = 3
 ex = Experiment({
     (0, 0): Surface(d),
