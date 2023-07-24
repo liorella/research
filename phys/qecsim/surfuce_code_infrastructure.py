@@ -618,19 +618,17 @@ class Experiment:
 
 ##
 
-error_model = ErrorModel(single_qubit_error=0.001, two_qubit_error=0.005, measurement_error=0.005)
-#error_model = NoErrorModel()
-d = 9
+# error_model = ErrorModel(single_qubit_error=0.001, two_qubit_error=0.005, measurement_error=0.005)
+error_model = NoErrorModel()
+d = 3
 ex = Experiment({
     (0, 0): Surface(d),
-    (0, 1): Surface(d),
-    (1, 0): Surface(d)
+    (0, 1): Surface(d)
 }, error_model)
-# ex.flip_surface_orientation((1,0))
+ex.flip_surface_orientation((0,0))
 # ex.flip_surface_orientation((0,0))
 
 ex.initialize_surface((0, 0), InitialState.X_PLUS)
-ex.initialize_surface((0, 1), InitialState.X_PLUS)
 ex.initialize_surface((0, 1), InitialState.X_PLUS)
 
 ex.stabilizer_round()
