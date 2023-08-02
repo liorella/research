@@ -1,6 +1,6 @@
-spi_clk_speed = 50e6
-spi_clk_period = max(int(1 / spi_clk_speed), 20)  # in ns
-transaction_size_bits = 4
+spi_clk_speed = 10e6
+spi_clk_period = max(int(1 / spi_clk_speed), 100)  # in ns
+transaction_size_bits = 8
 cs_period = spi_clk_period * (transaction_size_bits)
 clk_cycle = [(0, spi_clk_period / 4), (1, spi_clk_period / 2), (0, spi_clk_period / 4)]
 
@@ -57,6 +57,8 @@ config = {
             },
             "operations": {
                 "send_bit": "start_data_transfer",
+                "wait_cycles": "wait_cycle",
+                "wait_four_cycles": "wait_four_cycle",
             },
         },
         "MEAS_IN": {
@@ -114,6 +116,16 @@ config = {
             "length": cs_period,
             "digital_marker": "cs_n",
         },
+        "wait_cycle": {
+            "operation": "control",
+            "length": spi_clk_period,
+            "digital_marker": "set_low",
+        },
+        "wait_four_cycle": {
+            "operation": "control",
+            "length": spi_clk_period*4,
+            "digital_marker": "set_four_low",
+        },
 
         "readout_pulse": {
             "operation": "measurement",
@@ -129,6 +141,8 @@ config = {
     },
     "digital_waveforms": {
         "ON": {"samples": [(1, 0)]},
+        "set_low": {"samples": [(0, spi_clk_period)]},
+        "set_four_low": {"samples": [(0, 4*spi_clk_period)]},
         "set_high": {"samples": [(1, spi_clk_period)]},
         "clk": {"samples": clk_cycle*transaction_size_bits},
         "to_trig": {"samples": [(1,0)]},
