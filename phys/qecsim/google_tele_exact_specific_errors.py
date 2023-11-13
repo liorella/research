@@ -225,7 +225,7 @@ for m, state in enumerate(initial_states):
 
 plt.show()
 plt.xlabel('# of qubits')
-plt.ylim((0.6,1))מ
+plt.ylim((0.6,1))
 plt.xlim((1,9))
 plt.xticks([3,5,7])
 plt.ylabel('Fidelity')

@@ -86,7 +86,6 @@ class ErrorModel(BaseErrorModel):
     def generate_measurement_qubit_error(self, circ, qubits):
         circ.append("X_ERROR", qubits, self.measurement_error)
 
-
 class BaseSurface(abc.ABC):
 
     def __init__(self, width: int, height: int):
@@ -533,8 +532,6 @@ class LatticeSurgery(BaseSurface):
         measurements.extend(self.surgery_data_qubits)
         self.add_surgery_measurement_feedback(circ, measurements, error_model)
 
-
-
 class Experiment:
 
     def __init__(self, surfaces: Dict[tuple, Surface], error_model: BaseErrorModel):
@@ -607,7 +604,7 @@ class Experiment:
         self.activate_surface(surgery)
         surgery.initialize_surgery_data(self.circ, self.error_model)
 
-    def measure_surgery(self, coord0: tuple, coord1: tuple):
+    def terminate_surgery(self, coord0: tuple, coord1: tuple):
         surgery = self.surgeries[(coord0, coord1)]
         surgery.add_observable(self.circ, self.measurements, self.observables)
         self.observables += 1
@@ -617,21 +614,39 @@ class Experiment:
 
 
 ##
-
-# error_model = ErrorModel(single_qubit_error=0.001, two_qubit_error=0.005, measurement_error=0.005)
-error_model = NoErrorModel()
+error_model = ErrorModel(single_qubit_error=0.001, two_qubit_error=0.007, measurement_error=0.07)
+# error_model = NoErrorModel()
 d = 3
 ex = Experiment({
     (0, 0): Surface(d),
-    (0, 1): Surface(d)
+    (1, 0): Surface(d),
 }, error_model)
-ex.flip_surface_orientation((0,0))
-# ex.flip_surface_orientation((0,0))
 
 ex.initialize_surface((0, 0), InitialState.X_PLUS)
-ex.initialize_surface((0, 1), InitialState.X_PLUS)
+ex.initialize_surface((1, 0), InitialState.X_PLUS)
 
-ex.stabilizer_round()
+N=5
+for _ in range(N):
+    ex.stabilizer_round()
+
+ex.measure_surface((0, 0), Basis.X_BASIS)
+ex.measure_surface((1, 0), Basis.X_BASIS)
+
+
+##
+ error_model = ErrorModel(single_qubit_error=0.001, two_qubit_error=0.001, measurement_error=0.001)
+#error_model = NoErrorModel()
+d = 3
+ex = Experiment({
+    (0, 0): Surface(d),
+    (0, 1): Surface(d),
+}, error_model)
+# ex.flip_surface_orientation((0,0))
+# ex.flip_surface_orientation((0,0))
+
+ex.initialize_surface((0, 0), InitialState.Z_PLUS)
+ex.initialize_surface((0, 1), InitialState.Z_PLUS)
+
 ex.stabilizer_round()
 ex.stabilizer_round()
 
@@ -639,22 +654,18 @@ ex.stabilizer_round()
 ex.initialize_surgery((0, 0), (0, 1))
 ex.stabilizer_round()
 ex.stabilizer_round()
+ex.stabilizer_round()
+ex.stabilizer_round()
+ex.terminate_surgery((0, 0), (0, 1))
 
 ex.stabilizer_round()
-ex.measure_surgery((0, 0), (0, 1))
-
-# ex.stabilizer_round()
+ex.stabilizer_round()
+ex.stabilizer_round()
+ex.measure_surface((0, 0), Basis.Z_BASIS, apply_feedback= 1, feedback_basis= Basis.X_BASIS, feedback_surface=(0, 1))
 ex.stabilizer_round()
 ex.stabilizer_round()
 ex.stabilizer_round()
-
-ex.measure_surface((0, 0), Basis.X_BASIS, apply_feedback= 0, feedback_basis= Basis.X_BASIS, feedback_surface=(0, 1))
-ex.stabilizer_round()
-ex.stabilizer_round()
-
 ex.measure_surface((0, 1), Basis.Z_BASIS)
-# ex.measure_surface((1, 0), MeasurementBasis.Z_BASIS)
-
 
 ##
 model = ex.circ.detector_error_model(decompose_errors=True)
@@ -713,7 +724,7 @@ for j, d in enumerate(d_vec):
         ex.initialize_surgery((0, 0), (1, 0))
         for i in range(rounds):
             ex.stabilizer_round()
-        ex.measure_surgery((0, 0), (1, 0))
+        ex.terminate_surgery((0, 0), (1, 0))
         for i in range(d):
             ex.stabilizer_round()
         ex.measure_surface((0, 0), Basis.X_BASIS)
@@ -821,4 +832,35 @@ for j, d in enumerate(d_vec):
     ax.set_xlabel('post surgery rounds')
     ax.set_ylabel('error probability')
 plt.legend()
+plt.show()
+##
+import numpy as np
+from mpl_toolkits import mplot3d
+import matplotlib.pyplot as plt
+fig = plt.figure(figsize = (12,10))
+ax = plt.axes(projection='3d')
+
+x = np.arange(0, 1.2, 0.2)
+y = np.arange(0, 1.2, 0.2)
+
+X, Y = np.meshgrid(x, y)
+unit=np.ones(X.shape)
+max_t=10
+
+for t in range(max_t):
+    if t==0:
+        surf = ax.plot_surface(X, Y, 0*unit, cmap = plt.cm.cividis,  alpha=0.5)
+    if t==max_t-1:
+        surf = ax.plot_surface(X, Y, (max_t-1)*unit, cmap = plt.cm.viridis,  alpha=0.5)
+
+    # Set axes label
+    ax.set_xlabel('x', labelpad=20)
+    ax.set_ylabel('y', labelpad=20)
+    ax.set_zlabel('time', labelpad=20)
+    # Add a green line along x=0 and y=0 to 1
+    ax.plot([0, 0], [0, 1], [t, t], color='green', lw=5)
+    ax.plot([1, 1], [0, 1], [t, t], color='green', lw=5)
+    ax.plot([0, 1], [0, 0], [t, t], color='red', lw=5)
+    ax.plot([0, 1], [1, 1], [t, t], color='red', lw=5)
+
 plt.show()

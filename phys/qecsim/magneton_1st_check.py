@@ -9,7 +9,7 @@ import stim
 import numpy as np
 # qmm = QuantumMachinesManager("tyler-263ed49e.dev.quantum-machines.co", port=443, credentials=create_credentials())
 #qmm = QuantumMachinesManager(host='product-52ecaa43.dev.quantum-machines.co', port=443,credentials=create_credentials()) #cluser
-qmm = QuantumMachinesManager(host="192.168.116.123", cluster_name='my_cluster_2') # OPX in research team room
+qmm = QuantumMachinesManager(host="172.16.30.254", cluster_name='my_cluster_2') # OPX in research team room
 ## calculate simple error probabilities
 relevant_detectors= np.array([0, 1, 2, 3, 5, 7, 8, 10, 12, 13, 14, 15])
 
@@ -18,7 +18,7 @@ simple_circuit = stim.Circuit.generated(
     rounds=2,
     distance=3,
     after_clifford_depolarization= 0.3,
-    before_round_data_depolarization=0,
+    before_round_data_depolarization=0.3,
     before_measure_flip_probability=0.3)
 model=simple_circuit.detector_error_model()
 probs=np.zeros(model.num_detectors)
@@ -37,11 +37,11 @@ for i,ind in enumerate(relevant_detectors):
 print(rel_probs)
 
 
-th = -0.0005
+th = -0.005
 ##
-use_simulator = True
+use_simulator = False
 from qm.qua import Random
-num_rounds=4
+num_rounds=5
 with program() as prog:
     generator = Random()
     probs=declare(fixed, value=rel_probs)
@@ -55,6 +55,7 @@ with program() as prog:
     boo_final = declare(int)
     i = declare(int)
     out = declare(fixed)
+    stream = declare_stream()
     assign(boo_final, 0)
     assign(boo, 0)
     with for_(i, 0, i < num_rounds, i+1):
@@ -66,6 +67,7 @@ with program() as prog:
                 b = generator.rand_fixed()
                 assign(cond, b<probs_fin[j])
                 assign(boo_final, boo_final + (Cast.to_int(cond) << j))
+            play("to_trig", "TOTRIG")
         with else_():
             for j in range(4):
                 a = generator.rand_fixed()
@@ -76,7 +78,7 @@ with program() as prog:
             with case_(0):
                 play("clear", "CS_n", timestamp_stream="clear_play")
                 play("tick", "SCLK")
-                play("wait_four_cycles","MOSI")
+                # play("wait_four_cycles","MOSI")
                 play("wait_cycles","MOSI")
                 play("wait_cycles","MOSI")
                 play("wait_cycles","MOSI")
@@ -84,7 +86,7 @@ with program() as prog:
             with case_(1):
                 play("clear", "CS_n", timestamp_stream="clear_play")
                 play("tick", "SCLK")
-                play("wait_four_cycles","MOSI")
+                # play("wait_four_cycles","MOSI")
                 play("send_bit", "MOSI")
                 play("wait_cycles","MOSI")
                 play("wait_cycles","MOSI")
@@ -92,7 +94,7 @@ with program() as prog:
             with case_(2):
                 play("clear", "CS_n", timestamp_stream="clear_play")
                 play("tick", "SCLK")
-                play("wait_four_cycles","MOSI")
+                # play("wait_four_cycles","MOSI")
                 play("wait_cycles","MOSI")
                 play("send_bit", "MOSI")
                 play("wait_cycles","MOSI")
@@ -100,7 +102,6 @@ with program() as prog:
             with case_(3):
                 play("clear", "CS_n", timestamp_stream="clear_play")
                 play("tick", "SCLK")
-                play("wait_four_cycles","MOSI")
                 play("send_bit", "MOSI")
                 play("send_bit", "MOSI")
                 play("wait_cycles","MOSI")
@@ -108,7 +109,7 @@ with program() as prog:
             with case_(4):
                 play("clear", "CS_n", timestamp_stream="clear_play")
                 play("tick", "SCLK")
-                play("wait_four_cycles","MOSI")
+                # play("wait_four_cycles","MOSI")
                 play("wait_cycles","MOSI")
                 play("wait_cycles","MOSI")
                 play("send_bit", "MOSI")
@@ -116,7 +117,7 @@ with program() as prog:
             with case_(5):
                 play("clear", "CS_n", timestamp_stream="clear_play")
                 play("tick", "SCLK")
-                play("wait_four_cycles","MOSI")
+                # play("wait_four_cycles","MOSI")
                 play("send_bit", "MOSI")
                 play("wait_cycles","MOSI")
                 play("send_bit", "MOSI")
@@ -124,7 +125,7 @@ with program() as prog:
             with case_(6):
                 play("clear", "CS_n", timestamp_stream="clear_play")
                 play("tick", "SCLK")
-                play("wait_four_cycles","MOSI")
+                # play("wait_four_cycles","MOSI")
                 play("wait_cycles","MOSI")
                 play("send_bit", "MOSI")
                 play("send_bit", "MOSI")
@@ -132,7 +133,7 @@ with program() as prog:
             with case_(7):
                 play("clear", "CS_n", timestamp_stream="clear_play")
                 play("tick", "SCLK")
-                play("wait_four_cycles","MOSI")
+                # play("wait_four_cycles","MOSI")
                 play("send_bit", "MOSI")
                 play("send_bit", "MOSI")
                 play("send_bit", "MOSI")
@@ -140,7 +141,7 @@ with program() as prog:
             with case_(8):
                 play("clear", "CS_n", timestamp_stream="clear_play")
                 play("tick", "SCLK")
-                play("wait_four_cycles","MOSI")
+                # play("wait_four_cycles","MOSI")
                 play("wait_cycles","MOSI")
                 play("wait_cycles","MOSI")
                 play("wait_cycles","MOSI")
@@ -149,14 +150,14 @@ with program() as prog:
                 play("clear", "CS_n", timestamp_stream="clear_play")
                 play("tick", "SCLK")
                 play("send_bit", "MOSI")
-                play("wait_four_cycles","MOSI")
+                # play("wait_four_cycles","MOSI")
                 play("wait_cycles","MOSI")
                 play("wait_cycles","MOSI")
                 play("send_bit", "MOSI")
             with case_(10):
                 play("clear", "CS_n", timestamp_stream="clear_play")
                 play("tick", "SCLK")
-                play("wait_four_cycles","MOSI")
+                # play("wait_four_cycles","MOSI")
                 play("wait_cycles","MOSI")
                 play("send_bit", "MOSI")
                 play("wait_cycles","MOSI")
@@ -164,7 +165,7 @@ with program() as prog:
             with case_(11):
                 play("clear", "CS_n", timestamp_stream="clear_play")
                 play("tick", "SCLK")
-                play("wait_four_cycles","MOSI")
+                # play("wait_four_cycles","MOSI")
                 play("send_bit", "MOSI")
                 play("send_bit", "MOSI")
                 play("wait_cycles","MOSI")
@@ -172,7 +173,7 @@ with program() as prog:
             with case_(12):
                 play("clear", "CS_n", timestamp_stream="clear_play")
                 play("tick", "SCLK")
-                play("wait_four_cycles","MOSI")
+                # play("wait_four_cycles","MOSI")
                 play("wait_cycles","MOSI")
                 play("wait_cycles","MOSI")
                 play("send_bit", "MOSI")
@@ -180,7 +181,7 @@ with program() as prog:
             with case_(13):
                 play("clear", "CS_n", timestamp_stream="clear_play")
                 play("tick", "SCLK")
-                play("wait_four_cycles","MOSI")
+                # play("wait_four_cycles","MOSI")
                 play("send_bit", "MOSI")
                 play("wait_cycles","MOSI")
                 play("send_bit", "MOSI")
@@ -188,7 +189,7 @@ with program() as prog:
             with case_(14):
                 play("clear", "CS_n", timestamp_stream="clear_play")
                 play("tick", "SCLK")
-                play("wait_four_cycles","MOSI")
+                # play("wait_four_cycles","MOSI")
                 play("wait_cycles","MOSI")
                 play("send_bit", "MOSI")
                 play("send_bit", "MOSI")
@@ -196,7 +197,7 @@ with program() as prog:
             with case_(15):
                 play("clear", "CS_n", timestamp_stream="clear_play")
                 play("tick", "SCLK")
-                play("wait_four_cycles","MOSI")
+                # play("wait_four_cycles","MOSI")
                 play("send_bit", "MOSI")
                 play("send_bit", "MOSI")
                 play("send_bit", "MOSI")
@@ -208,7 +209,7 @@ with program() as prog:
                 with case_(0):
                     play("clear", "CS_n", timestamp_stream="clear_play")
                     play("tick", "SCLK")
-                    play("wait_four_cycles","MOSI")
+                    # play("wait_four_cycles","MOSI")
                     play("wait_cycles","MOSI")  # 5 clock cycles is 1 bit
                     play("wait_cycles","MOSI")
                     play("wait_cycles","MOSI")
@@ -216,7 +217,7 @@ with program() as prog:
                 with case_(1):
                     play("clear", "CS_n", timestamp_stream="clear_play")
                     play("tick", "SCLK")
-                    play("wait_four_cycles","MOSI")
+                    # play("wait_four_cycles","MOSI")
                     play("send_bit", "MOSI")
                     play("wait_cycles","MOSI")
                     play("wait_cycles","MOSI")
@@ -224,7 +225,7 @@ with program() as prog:
                 with case_(2):
                     play("clear", "CS_n", timestamp_stream="clear_play")
                     play("tick", "SCLK")
-                    play("wait_four_cycles","MOSI")
+                    # play("wait_four_cycles","MOSI")
                     play("wait_cycles","MOSI")
                     play("send_bit", "MOSI")
                     play("wait_cycles","MOSI")
@@ -232,7 +233,7 @@ with program() as prog:
                 with case_(3):
                     play("clear", "CS_n", timestamp_stream="clear_play")
                     play("tick", "SCLK")
-                    play("wait_four_cycles","MOSI")
+                    # play("wait_four_cycles","MOSI")
                     play("send_bit", "MOSI")
                     play("send_bit", "MOSI")
                     play("wait_cycles","MOSI")
@@ -240,7 +241,7 @@ with program() as prog:
                 with case_(4):
                     play("clear", "CS_n", timestamp_stream="clear_play")
                     play("tick", "SCLK")
-                    play("wait_four_cycles","MOSI")
+                    # play("wait_four_cycles","MOSI")
                     play("wait_cycles","MOSI")
                     play("wait_cycles","MOSI")
                     play("send_bit", "MOSI")
@@ -248,7 +249,7 @@ with program() as prog:
                 with case_(5):
                     play("clear", "CS_n", timestamp_stream="clear_play")
                     play("tick", "SCLK")
-                    play("wait_four_cycles","MOSI")
+                    # play("wait_four_cycles","MOSI")
                     play("send_bit", "MOSI")
                     play("wait_cycles","MOSI")
                     play("send_bit", "MOSI")
@@ -256,7 +257,7 @@ with program() as prog:
                 with case_(6):
                     play("clear", "CS_n", timestamp_stream="clear_play")
                     play("tick", "SCLK")
-                    play("wait_four_cycles","MOSI")
+                    # play("wait_four_cycles","MOSI")
                     play("wait_cycles","MOSI")
                     play("send_bit", "MOSI")
                     play("send_bit", "MOSI")
@@ -264,7 +265,7 @@ with program() as prog:
                 with case_(7):
                     play("clear", "CS_n", timestamp_stream="clear_play")
                     play("tick", "SCLK")
-                    play("wait_four_cycles","MOSI")
+                    # play("wait_four_cycles","MOSI")
                     play("send_bit", "MOSI")
                     play("send_bit", "MOSI")
                     play("send_bit", "MOSI")
@@ -272,7 +273,7 @@ with program() as prog:
                 with case_(8):
                     play("clear", "CS_n", timestamp_stream="clear_play")
                     play("tick", "SCLK")
-                    play("wait_four_cycles","MOSI")
+                    # play("wait_four_cycles","MOSI")
                     play("wait_cycles","MOSI")
                     play("wait_cycles","MOSI")
                     play("wait_cycles","MOSI")
@@ -280,7 +281,7 @@ with program() as prog:
                 with case_(9):
                     play("clear", "CS_n", timestamp_stream="clear_play")
                     play("tick", "SCLK")
-                    play("wait_four_cycles","MOSI")
+                    # play("wait_four_cycles","MOSI")
                     play("send_bit", "MOSI")
                     play("wait_cycles","MOSI")
                     play("wait_cycles","MOSI")
@@ -288,7 +289,7 @@ with program() as prog:
                 with case_(10):
                     play("clear", "CS_n", timestamp_stream="clear_play")
                     play("tick", "SCLK")
-                    play("wait_four_cycles","MOSI")
+                    # play("wait_four_cycles","MOSI")
                     play("wait_cycles","MOSI")
                     play("send_bit", "MOSI")
                     play("wait_cycles","MOSI")
@@ -296,7 +297,7 @@ with program() as prog:
                 with case_(11):
                     play("clear", "CS_n", timestamp_stream="clear_play")
                     play("tick", "SCLK")
-                    play("wait_four_cycles","MOSI")
+                    # play("wait_four_cycles","MOSI")
                     play("send_bit", "MOSI")
                     play("send_bit", "MOSI")
                     play("wait_cycles","MOSI")
@@ -304,7 +305,7 @@ with program() as prog:
                 with case_(12):
                     play("clear", "CS_n", timestamp_stream="clear_play")
                     play("tick", "SCLK")
-                    play("wait_four_cycles","MOSI")
+                    # play("wait_four_cycles","MOSI")
                     play("wait_cycles","MOSI")
                     play("wait_cycles","MOSI")
                     play("send_bit", "MOSI")
@@ -312,7 +313,7 @@ with program() as prog:
                 with case_(13):
                     play("clear", "CS_n", timestamp_stream="clear_play")
                     play("tick", "SCLK")
-                    play("wait_four_cycles","MOSI")
+                    # play("wait_four_cycles","MOSI")
                     play("send_bit", "MOSI")
                     play("wait_cycles","MOSI")
                     play("send_bit", "MOSI")
@@ -320,7 +321,7 @@ with program() as prog:
                 with case_(14):
                     play("clear", "CS_n", timestamp_stream="clear_play")
                     play("tick", "SCLK")
-                    play("wait_four_cycles","MOSI")
+                    # play("wait_four_cycles","MOSI")
                     play("wait_cycles","MOSI")
                     play("send_bit", "MOSI")
                     play("send_bit", "MOSI")
@@ -328,7 +329,7 @@ with program() as prog:
                 with case_(15):
                     play("clear", "CS_n", timestamp_stream="clear_play")
                     play("tick", "SCLK")
-                    play("wait_four_cycles","MOSI")
+                    # play("wait_four_cycles","MOSI")
                     play("send_bit", "MOSI")
                     play("send_bit", "MOSI")
                     play("send_bit", "MOSI")
@@ -336,17 +337,23 @@ with program() as prog:
         # with if_(i < (num_rounds-1)):
         #     wait(56)
 
-    align()
-    wait_for_trigger("TOMESURE")
+
+    # align()
     play("to_trig", "TOTRIG")
     align()
-    with if_(boo_final > 4):
-        play("send_bit","TOMESURE")
-    measure("readout", "MEAS_IN", "signal", integration.full("const", out))
-    save(out, "out")
-    with if_(out<th):
-        play("send_bit", "MOSI")
+    wait_for_trigger("MEAS_IN")
+    measure("readout", "MEAS_IN", None, integration.full("const", out))
+    play("to_trig", "TOTRIG")
 
+    align()
+
+
+    # with if_(out<th):
+    #     play("to_trig", "TOTRIG")
+
+    save(out, stream)
+    with stream_processing():
+        stream.save('out_value')
 
 
 if use_simulator:
@@ -365,8 +372,8 @@ if use_simulator:
     fig, ax = plt.subplots()
     ax.set(xlabel="time[ns]")
     ax.plot(cs_n[200:], label="CS_N")
-    ax.plot(clk[200:], label="CLK")
-    ax.plot(mosi[200:], label="MOSI")
+    ax.plot(clk[200:], label="MOSI")
+    ax.plot(mosi[200:], label="CLK")
     # ax.plot(to_trig[200:], label="TOTRIG")
     ax.legend()
     ax.set_yticks([])
@@ -384,6 +391,10 @@ else:
     # qmm = QuantumMachinesManager(host="192.168.116.123", cluster_name='my_cluster_2')  # OPX in research team room
     qm = qmm.open_qm(config)
     job = qm.execute(prog)
+    # job.result_handles.wait_for_all_values()
+    # job.result_handles.get("out").wait_for_all_values()
+    # print(job.result_handles.get("out").fetch_all())
+
 
 
 

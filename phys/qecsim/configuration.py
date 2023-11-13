@@ -1,6 +1,6 @@
 spi_clk_speed = 10e6
 spi_clk_period = max(int(1 / spi_clk_speed), 100)  # in ns
-transaction_size_bits = 8
+transaction_size_bits = 4
 cs_period = spi_clk_period * (transaction_size_bits)
 clk_cycle = [(0, spi_clk_period / 4), (1, spi_clk_period / 2), (0, spi_clk_period / 4)]
 
@@ -38,7 +38,7 @@ config = {
         "SCLK": {
             "digitalInputs": {
                 "digital_input1": {
-                    "port": ("con1", 4),
+                    "port": ("con1", 5),
                     "delay": 0,
                     "buffer": 0,
                 },
@@ -50,7 +50,7 @@ config = {
         "MOSI": {
             "digitalInputs": {
                 "digital_input1": {
-                    "port": ("con1", 5),
+                    "port": ("con1", 4),
                     "delay": 0,
                     "buffer": 0,
                 },
@@ -63,7 +63,7 @@ config = {
         },
         "MEAS_IN": {
             "singleInput": {
-                'port': ('con1', 2),
+                'port': ('con1', 1),
             },
             'intermediate_frequency': 0,
             'operations': {

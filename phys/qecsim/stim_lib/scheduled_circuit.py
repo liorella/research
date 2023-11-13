@@ -483,7 +483,55 @@ def teleportation_post_processing_parallel_mes(distance,
     # circ.append("Y_ERROR", distance - 1, 0.015) #T1
 
     return circ
+##
+def GHZ_circ(distance,
+               single_qubit_depolarization_rate,
+               two_qubit_depolarization_rate,
+               before_measure_flip_probability,
+               after_reset_flip_probability):
 
+    circ = stim.Circuit()
+    qubits = range(distance)
+    for i in range(distance):
+        circ.append('QUBIT_COORDS', [i], (i, 0))
+    circ.append('R', qubits)
+    circ.append("DEPOLARIZE1", qubits, after_reset_flip_probability)
+    circ.append("TICK")
+    circ.append('H', qubits)
+    circ.append("DEPOLARIZE1", qubits,single_qubit_depolarization_rate)
+    circ.append('TICK')
+    circ.append('CZ', qubits[1:])
+    circ.append("DEPOLARIZE2", qubits[1:], two_qubit_depolarization_rate)
+    circ.append('TICK')
+    circ.append('CZ', qubits[:-1])
+    circ.append("DEPOLARIZE2", qubits[:-1], two_qubit_depolarization_rate)
+    circ.append('TICK')
+    circ.append('H', qubits[1::2])
+    circ.append("DEPOLARIZE1", qubits[1::2], single_qubit_depolarization_rate)
+    circ.append('TICK')
+    circ.append("X_ERROR", qubits[1::2], before_measure_flip_probability)
+    circ.append('M', qubits[1::2])
+    circ.append('TICK')
+    for i in range(int((distance-1)/2)):
+        for j in range(distance-2*(i+1), distance, 2):
+            circ.append('CX', [stim.target_rec(-i-1), j+1])
+    circ.append('R', qubits[1::2])
+    circ.append("DEPOLARIZE1", qubits, after_reset_flip_probability)
+    circ.append('H', qubits[1::2])
+    circ.append("DEPOLARIZE1", qubits, single_qubit_depolarization_rate)
+    circ.append('TICK')
+    circ.append('CZ', qubits[:-1])
+    circ.append("DEPOLARIZE2", qubits[:-1], two_qubit_depolarization_rate)
+    circ.append('TICK')
+    circ.append('H', qubits[1::2])
+    circ.append("DEPOLARIZE1", qubits[1::2], single_qubit_depolarization_rate)
+    circ.append('TICK')
+    circ.append("X_ERROR", qubits, before_measure_flip_probability)
+    circ.append('M', qubits)
+    for i in range(distance):
+        circ.append("DETECTOR", stim.target_rec(-i-1))
+
+    return circ
 ##
 def generated(code_task,
               distance,
@@ -510,6 +558,9 @@ def generated(code_task,
     elif code_task == "teleportation_post_processing_parallel_mes":
         return teleportation_post_processing_parallel_mes(distance, single_qubit_depolarization_rate, two_qubit_depolarization_rate,
                                                    before_measure_flip_probability, after_reset_flip_probability, state)
+    elif code_task == "GHZ_circuit":
+        return GHZ_circ(distance, single_qubit_depolarization_rate, two_qubit_depolarization_rate,
+                                                   before_measure_flip_probability, after_reset_flip_probability)
 
     else:
         return stim.Circuit.generated(code_task,
