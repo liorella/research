@@ -542,6 +542,9 @@ class Experiment:
             surface.allocate_qubits(coordinate)
 
         for coordinate, surface in surfaces.items():
+            self._allocate_qubit_coordinates(self.circ,coordinate)
+
+        for coordinate, surface in surfaces.items():
             self._allocate_surgery(surface, coordinate, SurgeryOrientation.HORIZONTAL)
             self._allocate_surgery(surface, coordinate, SurgeryOrientation.VERTICAL)
 
@@ -549,6 +552,20 @@ class Experiment:
         self.measurements = []
         self.error_model = error_model
         self.observables = 0
+    def _allocate_qubit_coordinates(self,circ,coordinate):
+        d=self.surfaces[coordinate].dist
+        for i in range(d):
+            for j in range(d):
+                circ.append('QUBIT_COORDS', self.surfaces[coordinate].data_qubits[i, j],
+                            (i +0.5+ (d + 1) * coordinate[0], 0.5+j+(d+1)*coordinate[1]))
+            circ.append('QUBIT_COORDS', self.surfaces[coordinate].to_surgery_data_qubits['R'][i],
+                        (d + 0.5 + (d + 1) * coordinate[0], 0.5 +  i + (d + 1) * coordinate[1]))
+            circ.append('QUBIT_COORDS', self.surfaces[coordinate].to_surgery_data_qubits['T'][i],
+                        (i + 0.5 + (d + 1) * coordinate[0], 0.5 + d + (d + 1) * coordinate[1]))
+        for i in range(d+1):
+            for j in range(d+1):
+                circ.append('QUBIT_COORDS',self.surfaces[coordinate].ancilla_qubits[i,j],(i+(d+1)*coordinate[0],j+(d+1)*coordinate[1]))
+
 
     def _allocate_surgery(self, surface, coordinate, orientation: SurgeryOrientation):
         other_coord = (coordinate[0], coordinate[1] + 1) if orientation == SurgeryOrientation.VERTICAL else (
@@ -614,29 +631,38 @@ class Experiment:
 
 
 ##
-error_model = ErrorModel(single_qubit_error=0.001, two_qubit_error=0.007, measurement_error=0.07)
-# error_model = NoErrorModel()
+#error_model = ErrorModel(single_qubit_error=0.001, two_qubit_error=0.007, measurement_error=0.07)
+error_model = NoErrorModel()
 d = 3
 ex = Experiment({
     (0, 0): Surface(d),
-    (1, 0): Surface(d),
+    (0, 1): Surface(d)
 }, error_model)
 
-ex.initialize_surface((0, 0), InitialState.X_PLUS)
-ex.initialize_surface((1, 0), InitialState.X_PLUS)
+ex.initialize_surface((0, 0), InitialState.Z_PLUS)
+ex.initialize_surface((0, 1), InitialState.Z_PLUS)
 
-N=5
-for _ in range(N):
-    ex.stabilizer_round()
-
-ex.measure_surface((0, 0), Basis.X_BASIS)
-ex.measure_surface((1, 0), Basis.X_BASIS)
+ex.stabilizer_round()
+ex.stabilizer_round()
+ex.initialize_surgery((0, 0), (0, 1))
+ex.stabilizer_round()
+ex.stabilizer_round()
+ex.stabilizer_round()
+ex.terminate_surgery((0, 0), (0, 1))
+ex.stabilizer_round()
+ex.stabilizer_round()
+ex.stabilizer_round()
+ex.measure_surface((0, 0), Basis.Z_BASIS)
+ex.stabilizer_round()
+ex.stabilizer_round()
+ex.stabilizer_round()
+ex.measure_surface((0, 1), Basis.Z_BASIS)
 
 
 ##
- error_model = ErrorModel(single_qubit_error=0.001, two_qubit_error=0.001, measurement_error=0.001)
-#error_model = NoErrorModel()
-d = 3
+#error_model = ErrorModel(single_qubit_error=0.001, two_qubit_error=0.001, measurement_error=0.001)
+error_model = NoErrorModel()
+d = 5
 ex = Experiment({
     (0, 0): Surface(d),
     (0, 1): Surface(d),
@@ -667,6 +693,7 @@ ex.stabilizer_round()
 ex.stabilizer_round()
 ex.measure_surface((0, 1), Basis.Z_BASIS)
 
+a=ex.circ.diagram('interactive-html')
 ##
 model = ex.circ.detector_error_model(decompose_errors=True)
 matching = pymatching.Matching.from_detector_error_model(model)

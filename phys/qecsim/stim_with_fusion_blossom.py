@@ -375,6 +375,7 @@ num_shots = 10000
 sampler = ex.circ.compile_detector_sampler()
 syndrome, actual_observables = sampler.sample(shots=num_shots, separate_observables=True)
 predicted_pymatching_observables = matching.decode_batch(syndrome)
+
 pymatching_errors = sum(predicted_pymatching_observables != actual_observables)
 print(pymatching_errors)
 

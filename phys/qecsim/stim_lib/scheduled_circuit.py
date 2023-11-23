@@ -8,7 +8,7 @@ from qec_generator import CircuitParams
 from stim_lib.error_context import StimErrorContext
 from stim_lib.run_feedback import measure_instructions
 
-inst_with_duration = {'CX', 'H', 'MR', 'M', 'R', 'RZ'}
+inst_with_duration = {'CX','CZ','H', 'MR', 'M', 'R', 'RZ'}
 
 
 def get_pauli_probs(duration: float, t1: float, t2: float) -> Tuple[float, float, float]:
@@ -47,6 +47,8 @@ def instruction_duration(inst: stim.CircuitInstruction, params: CircuitParams) -
     if inst.name == 'H':
         return params.single_qubit_gate_duration
     if inst.name == 'CX':
+        return params.two_qubit_gate_duration
+    if inst.name == 'CZ':
         return params.two_qubit_gate_duration
     if inst.name == 'MR':
         return params.reset_duration + params.reset_latency + params.meas_duration
@@ -526,12 +528,59 @@ def GHZ_circ(distance,
     circ.append('H', qubits[1::2])
     circ.append("DEPOLARIZE1", qubits[1::2], single_qubit_depolarization_rate)
     circ.append('TICK')
+    circ.append('H', qubits) #  if checking XX parities
+    circ.append("DEPOLARIZE1", qubits, single_qubit_depolarization_rate) #  if checking XX parities
+    circ.append('TICK') #  if checking XX parities
     circ.append("X_ERROR", qubits, before_measure_flip_probability)
     circ.append('M', qubits)
+    meas_list=[] #  if checking XX parities
     for i in range(distance):
-        circ.append("DETECTOR", stim.target_rec(-i-1))
+        #circ.append("DETECTOR", stim.target_rec(-i-1)) #  if checking ZZ parities
+        meas_list.append(stim.target_rec(-i - 1)) #  if checking XX parities
+    circ.append("DETECTOR", meas_list) #  if checking XX parities
+    return circ
+def GHZ_unitary_circ(distance,
+               single_qubit_depolarization_rate,
+               two_qubit_depolarization_rate,
+               before_measure_flip_probability,
+               after_reset_flip_probability):
+    r=int(distance / 2)
+    circ = stim.Circuit()
+    qubits = range(distance) #distance is even in this case
+    for i in range(distance):
+        circ.append('QUBIT_COORDS', [i], (i, 0))
+    circ.append('R', qubits)
+    circ.append("DEPOLARIZE1", qubits, after_reset_flip_probability)
+    circ.append("TICK")
+    circ.append('H', qubits)
+    circ.append("DEPOLARIZE1", qubits,single_qubit_depolarization_rate)
+    circ.append('TICK')
+    circ.append('CZ', [qubits[r-1],qubits[r]])
+    circ.append("DEPOLARIZE2", [qubits[r-1],qubits[r]], two_qubit_depolarization_rate)
+    circ.append('TICK')
+    circ.append('H', qubits[r])
+    circ.append("DEPOLARIZE1", qubits[r],single_qubit_depolarization_rate)
+    circ.append('TICK')
+    for i in range(int(distance/2)-1):
+        circ.append('CZ', [qubits[r-i-1],qubits[r-i-2],qubits[r+i],qubits[r+i+1]])
+        circ.append("DEPOLARIZE2", [qubits[r-i-1],qubits[r-i-2],qubits[r+i],qubits[r+i+1]], two_qubit_depolarization_rate)
+        circ.append('TICK')
+        circ.append('H', [qubits[r-i-2],qubits[r+i+1]])
+        circ.append("DEPOLARIZE1", [qubits[r-i-2],qubits[r+i+1]], single_qubit_depolarization_rate)
+        circ.append('TICK')
+    circ.append('H', qubits)  # if checking XX parities
+    circ.append("DEPOLARIZE1", qubits, single_qubit_depolarization_rate)  # if checking XX parities
+    circ.append('TICK')  # if checking XX parities
+    circ.append("X_ERROR", qubits, before_measure_flip_probability)
+    circ.append('M', qubits)
+    meas_list = []  # if checking XX parities
+    for i in range(distance):
+        # circ.append("DETECTOR", stim.target_rec(-i-1)) #  if checking ZZ parities
+        meas_list.append(stim.target_rec(-i - 1))  # if checking XX parities
+    circ.append("DETECTOR", meas_list)  # if checking XX parities
 
     return circ
+
 ##
 def generated(code_task,
               distance,
@@ -560,6 +609,9 @@ def generated(code_task,
                                                    before_measure_flip_probability, after_reset_flip_probability, state)
     elif code_task == "GHZ_circuit":
         return GHZ_circ(distance, single_qubit_depolarization_rate, two_qubit_depolarization_rate,
+                                                   before_measure_flip_probability, after_reset_flip_probability)
+    elif code_task == "GHZ_unitary_circ":
+        return GHZ_unitary_circ(distance, single_qubit_depolarization_rate, two_qubit_depolarization_rate,
                                                    before_measure_flip_probability, after_reset_flip_probability)
 
     else:
