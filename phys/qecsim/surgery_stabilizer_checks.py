@@ -368,3 +368,19 @@ circuit4 = stim.Circuit('''
 ''')
 tableau4 = stim.Tableau.from_circuit(circuit4)
 print(repr(tableau4))
+## first stabilizer round for initializing in logical +
+circuit = stim.Circuit('''
+R 0 1 2 3 4  
+X 1
+H 0 
+CX 0 1 0 3
+H 0
+CZ 0 1
+CX 1 2 3 4
+H 1 3
+CX 4 3 2 1
+''')
+# Create a stabilizer tableau
+
+tableau=stim.Tableau.from_circuit(circuit,ignore_reset=True)
+print(repr(tableau))
